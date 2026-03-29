@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+
+*.log
+vite.log
+vite-error.log
+
+*.tsbuildinfo
+
+supabase/.temp/
+
+.vercel
