@@ -275,34 +275,46 @@ function MobileFileCard({
   );
 }
 
-function getMostCommonYear(files: BotFileRecord[]) {
-  if (files.length === 0) {
-    return null;
-  }
+type TrendSeriesItem = {
+  year: string;
+  count: number;
+  size: number;
+  latestUpload: string | null;
+  summaries: number;
+};
 
-  const counts = files.reduce<Record<string, number>>((result, file) => {
-    result[file.year] = (result[file.year] ?? 0) + 1;
-    return result;
-  }, {});
-
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-}
+type ActivityCurvePoint = {
+  key: string;
+  year: string;
+  label: string;
+  fullLabel: string;
+  value: number;
+  fileSize: number;
+  timestamp: number;
+};
 
 function buildTrendSeries(files: BotFileRecord[]) {
-  const byYear = files.reduce<
-    Record<string, { year: string; count: number; size: number; summaries: number }>
-  >((result, file) => {
+  const byYear = files.reduce<Record<string, TrendSeriesItem>>((result, file) => {
     const year = file.year;
     const bucket = result[year] ?? {
       year,
       count: 0,
       size: 0,
+      latestUpload: null,
       summaries: 0,
     };
 
     bucket.count += 1;
     bucket.size += file.file_size ?? 0;
     bucket.summaries += file.summary?.trim() ? 1 : 0;
+    const uploadedAt = file.created_at ?? file.updated_at ?? null;
+    if (
+      uploadedAt &&
+      (!bucket.latestUpload ||
+        new Date(uploadedAt).getTime() > new Date(bucket.latestUpload).getTime())
+    ) {
+      bucket.latestUpload = uploadedAt;
+    }
     result[year] = bucket;
 
     return result;
@@ -319,28 +331,128 @@ function buildTrendSeries(files: BotFileRecord[]) {
     year: String(currentYear - (3 - index)),
     count: 0,
     size: 0,
+    latestUpload: null,
     summaries: 0,
   }));
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
+function getMostCommonYear(files: BotFileRecord[]) {
+  if (files.length === 0) {
+    return null;
+  }
+
+  const counts = files.reduce<Record<string, number>>((result, file) => {
+    result[file.year] = (result[file.year] ?? 0) + 1;
+    return result;
+  }, {});
+
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
-function seededNoise(seed: number) {
-  const raw = Math.sin(seed * 12.9898) * 43758.5453;
-  return raw - Math.floor(raw);
+function buildActivityCurve(files: BotFileRecord[]) {
+  const uploads = files
+    .map((file) => {
+      const rawTimestamp = file.created_at ?? file.updated_at ?? null;
+      if (!rawTimestamp) {
+        return null;
+      }
+
+      const timestamp = new Date(rawTimestamp).getTime();
+      if (Number.isNaN(timestamp)) {
+        return null;
+      }
+
+      const pointDate = new Date(timestamp);
+
+      return {
+        key: file.id,
+        year: String(pointDate.getFullYear()),
+        label: file.name,
+        fullLabel: new Intl.DateTimeFormat("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }).format(pointDate),
+        fileSize: file.file_size ?? 0,
+        timestamp,
+      };
+    })
+    .filter(
+      (
+        point,
+      ): point is Omit<ActivityCurvePoint, "value"> =>
+        Boolean(point),
+    )
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (uploads.length === 0) {
+    const currentYear = String(new Date().getFullYear());
+    return [
+      {
+        key: "empty-start",
+        year: currentYear,
+        label: "No uploads yet",
+        fullLabel: currentYear,
+        value: 0,
+        fileSize: 0,
+        timestamp: Date.now(),
+      },
+      {
+        key: "empty-end",
+        year: currentYear,
+        label: "No uploads yet",
+        fullLabel: currentYear,
+        value: 0,
+        fileSize: 0,
+        timestamp: Date.now(),
+      },
+    ] satisfies ActivityCurvePoint[];
+  }
+
+  let previousValue = 0;
+
+  const points = uploads.map((upload, index) => {
+    const normalizedSize = Math.max(1, Math.sqrt(Math.max(upload.fileSize, 1024) / 1024));
+    const nextValue =
+      index === 0 ? normalizedSize : previousValue * 0.38 + normalizedSize * 0.62;
+
+    previousValue = nextValue;
+
+    return {
+      ...upload,
+      value: Number(nextValue.toFixed(2)),
+    };
+  });
+
+  if (points.length === 1) {
+    const onlyPoint = points[0];
+    return [
+      {
+        ...onlyPoint,
+        key: `${onlyPoint.key}-start`,
+        value: Number(Math.max(0, onlyPoint.value * 0.9).toFixed(2)),
+      },
+      {
+        ...onlyPoint,
+        key: `${onlyPoint.key}-end`,
+      },
+    ];
+  }
+
+  return points;
 }
 
 function StorageTrendPanel({
   series,
+  activityCurve,
   totalFiles,
   totalBytes,
   summaryCount,
   latestUpdate,
   dominantYear,
 }: {
-  series: Array<{ year: string; count: number; size: number; summaries: number }>;
+  series: TrendSeriesItem[];
+  activityCurve: ActivityCurvePoint[];
   totalFiles: number;
   totalBytes: number;
   summaryCount: number;
@@ -354,14 +466,14 @@ function StorageTrendPanel({
   const paddingBottom = 28;
   const usableWidth = chartWidth - paddingX * 2;
   const usableHeight = chartHeight - paddingTop - paddingBottom;
-  const maxValue = Math.max(...series.map((item) => item.count), 1);
-  const minValue = Math.min(...series.map((item) => item.count), 0);
+  const maxValue = Math.max(...activityCurve.map((item) => item.value), 1);
+  const minValue = Math.min(...activityCurve.map((item) => item.value), 0);
   const valueRange = Math.max(maxValue - minValue, 1);
-  const points = series.map((item, index) => {
-    const ratio = series.length === 1 ? 0.5 : index / (series.length - 1);
+  const points = activityCurve.map((item, index) => {
+    const ratio = activityCurve.length === 1 ? 0.5 : index / (activityCurve.length - 1);
     const x = paddingX + ratio * usableWidth;
     const y =
-      paddingTop + usableHeight - ((item.count - minValue) / valueRange) * usableHeight;
+      paddingTop + usableHeight - ((item.value - minValue) / valueRange) * usableHeight;
 
     return {
       ...item,
@@ -369,62 +481,20 @@ function StorageTrendPanel({
       y,
     };
   });
+  const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
+  const baselineY = chartHeight - paddingBottom;
+  const areaPoints =
+    points.length > 0
+      ? `${linePoints} ${points[points.length - 1].x},${baselineY} ${points[0].x},${baselineY}`
+      : "";
+  const peakPoint = activityCurve.reduce<ActivityCurvePoint | null>((result, point) => {
+    if (!result || point.value > result.value) {
+      return point;
+    }
 
-  const sparklinePoints =
-    points.length > 1
-      ? points.flatMap((point, index) => {
-          const nextPoint = points[index + 1];
-
-          if (!nextPoint) {
-            return [point];
-          }
-
-          const stepCount = 12;
-
-          return Array.from({ length: stepCount }, (_, stepIndex) => {
-            const progress = stepIndex / stepCount;
-            const x = point.x + (nextPoint.x - point.x) * progress;
-            const baseY = point.y + (nextPoint.y - point.y) * progress;
-            const sway =
-              (seededNoise(index * 100 + stepIndex + point.count + nextPoint.count) - 0.5) *
-              34;
-            const spike =
-              stepIndex % 5 === 2
-                ? (seededNoise(index * 13 + stepIndex) > 0.5 ? -22 : 16)
-                : 0;
-            const y = clamp(
-              baseY - (sway + spike) * Math.sin(Math.PI * progress),
-              paddingTop + 6,
-              chartHeight - paddingBottom - 6,
-            );
-
-            return {
-              x,
-              y,
-            };
-          });
-        })
-      : points.map((point, index) => ({
-          x:
-            paddingX +
-            (usableWidth / 7) * index,
-          y: clamp(
-            point.y -
-              (seededNoise(index + point.count) - 0.5) * 30,
-            paddingTop + 8,
-            chartHeight - paddingBottom - 8,
-          ),
-        }));
-  const sparklinePath = sparklinePoints
-    .map((point) => `${point.x},${point.y}`)
-    .join(" ");
-  const firstValue = series[0]?.count ?? 0;
-  const lastValue = series[series.length - 1]?.count ?? 0;
-  const trendDelta =
-    firstValue === 0 ? (lastValue > 0 ? 100 : 0) : ((lastValue - firstValue) / firstValue) * 100;
-  const trendLabel = `${trendDelta >= 0 ? "+" : ""}${Math.round(trendDelta)}%`;
-  const trendTone =
-    trendDelta >= 0 ? "text-emerald-600" : "text-rose-600";
+    return result;
+  }, null);
+  const gradientId = React.useId();
 
   return (
     <Card className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70 sm:rounded-[1.8rem] sm:p-6">
@@ -440,19 +510,19 @@ function StorageTrendPanel({
                 Archive activity view
               </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                A chart-style view of how many files are stored each year.
+                A chart-style view of upload activity across your stored files.
               </p>
             </div>
 
             <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Trend change
+                Peak upload
               </p>
               <p className="mt-1 text-2xl font-semibold text-emerald-950">
-                {trendLabel}
+                {peakPoint ? formatFileSize(peakPoint.fileSize) : "--"}
               </p>
               <p className="mt-1 text-xs text-emerald-800/80">
-                Compared with the earliest year shown
+                Largest upload represented in the visible curve
               </p>
             </div>
           </div>
@@ -461,14 +531,11 @@ function StorageTrendPanel({
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  File count curve
+                  Upload activity curve
                 </p>
-                <div className="mt-2 flex items-end gap-3">
+                <div className="mt-2">
                   <p className="text-3xl font-semibold tracking-tight text-slate-950">
                     {totalFiles}
-                  </p>
-                  <p className={`pb-1 text-sm font-medium ${trendTone}`}>
-                    {trendLabel}
                   </p>
                 </div>
               </div>
@@ -497,11 +564,38 @@ function StorageTrendPanel({
                 preserveAspectRatio="none"
                 aria-label="Storage trend chart"
               >
-                {sparklinePath ? (
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#16a34a" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#16a34a" stopOpacity="0.02" />
+                  </linearGradient>
+                </defs>
+
+                {Array.from({ length: 4 }).map((_, index) => {
+                  const y = paddingTop + (usableHeight / 3) * index;
+
+                  return (
+                    <line
+                      key={index}
+                      x1={paddingX}
+                      x2={chartWidth - paddingX}
+                      y1={y}
+                      y2={y}
+                      stroke="#e2e8f0"
+                      strokeDasharray="4 6"
+                    />
+                  );
+                })}
+
+                {areaPoints ? (
+                  <polygon points={areaPoints} fill={`url(#${gradientId})`} />
+                ) : null}
+
+                {linePoints ? (
                   <polyline
-                    points={sparklinePath}
+                    points={linePoints}
                     fill="none"
-                    stroke="#15803d"
+                    stroke="#16a34a"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -509,29 +603,38 @@ function StorageTrendPanel({
                 ) : null}
 
                 {[points[0], points[points.length - 1]]
-                  .filter((point, index, array): point is (typeof points)[number] => Boolean(point) && array.findIndex((candidate) => candidate?.year === point?.year) === index)
+                  .filter(
+                    (
+                      point,
+                      index,
+                      array,
+                    ): point is (typeof points)[number] =>
+                      Boolean(point) &&
+                      array.findIndex((candidate) => candidate?.year === point?.year) ===
+                        index,
+                  )
                   .map((point) => (
-                  <g key={point.year}>
-                    <circle
-                      cx={point.x}
-                      cy={point.y}
-                      r="3.5"
-                      fill="#ffffff"
-                      stroke="#15803d"
-                      strokeWidth="2"
-                    />
-                    <text
-                      x={point.x}
-                      y={chartHeight - 10}
-                      textAnchor="middle"
-                      fill="#64748b"
-                      fontSize="12"
-                      fontWeight="600"
-                    >
-                      {point.year}
-                    </text>
-                  </g>
-                ))}
+                    <g key={point.year}>
+                      <circle
+                        cx={point.x}
+                        cy={point.y}
+                        r="3.5"
+                        fill="#ffffff"
+                        stroke="#16a34a"
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={point.x}
+                        y={chartHeight - 10}
+                        textAnchor="middle"
+                        fill="#64748b"
+                        fontSize="12"
+                        fontWeight="600"
+                      >
+                        {point.year}
+                      </text>
+                    </g>
+                  ))}
               </svg>
             </div>
           </div>
@@ -637,6 +740,7 @@ export function DashboardPage() {
 
   const years = React.useMemo(() => buildYearOptions(files), [files]);
   const trendSeries = React.useMemo(() => buildTrendSeries(files), [files]);
+  const activityCurve = React.useMemo(() => buildActivityCurve(files), [files]);
 
   const sortedFiles = React.useMemo(
     () =>
@@ -999,6 +1103,7 @@ export function DashboardPage() {
         <section>
           <StorageTrendPanel
             series={trendSeries}
+            activityCurve={activityCurve}
             totalFiles={files.length}
             totalBytes={totalBytes}
             summaryCount={summaryCount}
