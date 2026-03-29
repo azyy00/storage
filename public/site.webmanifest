@@ -1,0 +1,16 @@
+{
+  "name": "Goa Community College File Storage Portal",
+  "short_name": "GCC Storage",
+  "description": "Simple file storage portal for Goa Community College.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#7f1d47",
+  "icons": [
+    {
+      "src": "/Logo.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    }
+  ]
+}

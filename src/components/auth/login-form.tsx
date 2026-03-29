@@ -77,7 +77,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-md rounded-[2rem] border border-slate-200 bg-white/95 p-8 shadow-xl shadow-slate-200/70">
+    <Card className="mx-auto w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white/95 p-5 shadow-xl shadow-slate-200/70 sm:rounded-[2rem] sm:p-8">
       <div className="flex items-center gap-3">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
           <ShieldCheck className="h-5 w-5" />
@@ -132,7 +132,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
           </button>
         </div>
 
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-slate-950">
+        <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
           {mode === "login" ? "Access Simple File Storage" : "Create Your Account"}
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">

@@ -8,6 +8,7 @@ import {
   LogOut,
   PencilLine,
   Search,
+  TrendingUp,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -70,13 +71,13 @@ function MetricCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <Card className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70">
+    <Card className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:rounded-[1.6rem] sm:p-5">
       <div className="flex items-start gap-4">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 sm:h-11 sm:w-11">
           <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="text-3xl font-semibold tracking-tight text-slate-950">
+          <p className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
             {value}
           </p>
           <p className="mt-1 text-sm font-medium text-slate-700">{label}</p>
@@ -84,14 +85,6 @@ function MetricCard({
         </div>
       </div>
     </Card>
-  );
-}
-
-function InsightLine({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-[1.1rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-      {children}
-    </div>
   );
 }
 
@@ -117,28 +110,167 @@ function EmptyState({
 
 function LoadingTable() {
   return (
-    <div className="rounded-[1.25rem] border border-slate-200">
-      <div className="grid grid-cols-6 gap-4 px-4 py-3 text-sm font-medium text-slate-500">
-        <div>Name</div>
-        <div>Type</div>
-        <div>Year</div>
-        <div>Size</div>
-        <div>Updated</div>
-        <div className="text-right">Actions</div>
+    <>
+      <div className="space-y-3 md:hidden">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div
+            key={index}
+            className="rounded-[1.25rem] border border-slate-200 bg-white p-4"
+          >
+            <div className="h-5 w-3/4 animate-pulse rounded-full bg-slate-100" />
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {Array.from({ length: 4 }).map((__, cellIndex) => (
+                <div
+                  key={cellIndex}
+                  className="h-14 animate-pulse rounded-2xl bg-slate-100"
+                />
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <div
-          key={index}
-          className="grid grid-cols-6 gap-4 border-t border-slate-200 px-4 py-4"
-        >
-          {Array.from({ length: 6 }).map((__, cellIndex) => (
-            <div
-              key={cellIndex}
-              className="h-5 animate-pulse rounded-full bg-slate-100"
-            />
-          ))}
+
+      <div className="hidden rounded-[1.25rem] border border-slate-200 md:block">
+        <div className="grid grid-cols-6 gap-4 px-4 py-3 text-sm font-medium text-slate-500">
+          <div>Name</div>
+          <div>Type</div>
+          <div>Year</div>
+          <div>Size</div>
+          <div>Updated</div>
+          <div className="text-right">Actions</div>
         </div>
-      ))}
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-6 gap-4 border-t border-slate-200 px-4 py-4"
+          >
+            {Array.from({ length: 6 }).map((__, cellIndex) => (
+              <div
+                key={cellIndex}
+                className="h-5 animate-pulse rounded-full bg-slate-100"
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function MobileFileCard({
+  file,
+  isDownloading,
+  onOpen,
+  onRename,
+  onDownload,
+  onDelete,
+}: {
+  file: BotFileRecord;
+  isDownloading: boolean;
+  onOpen: () => void;
+  onRename: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className="rounded-[1.35rem] border border-slate-200 bg-white p-4 transition hover:border-slate-300 hover:bg-slate-50/70"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+            <FileText className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900">
+              {file.name}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Updated {formatDateStamp(file.updated_at)}
+            </p>
+          </div>
+        </div>
+
+        <Badge
+          variant="outline"
+          className="rounded-full border-slate-200 bg-white px-2.5 py-0.5 text-slate-600"
+        >
+          {file.file_type ?? "FILE"}
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Year
+          </p>
+          <p className="mt-1 text-sm font-medium text-slate-900">{file.year}</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Size
+          </p>
+          <p className="mt-1 text-sm font-medium text-slate-900">
+            {formatFileSize(file.file_size)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRename();
+          }}
+        >
+          <PencilLine className="h-4 w-4" />
+          Rename
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDownload();
+          }}
+          disabled={isDownloading}
+        >
+          {isDownloading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </Button>
+      </div>
     </div>
   );
 }
@@ -154,6 +286,295 @@ function getMostCommonYear(files: BotFileRecord[]) {
   }, {});
 
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+function buildTrendSeries(files: BotFileRecord[]) {
+  const byYear = files.reduce<
+    Record<string, { year: string; count: number; size: number; summaries: number }>
+  >((result, file) => {
+    const year = file.year;
+    const bucket = result[year] ?? {
+      year,
+      count: 0,
+      size: 0,
+      summaries: 0,
+    };
+
+    bucket.count += 1;
+    bucket.size += file.file_size ?? 0;
+    bucket.summaries += file.summary?.trim() ? 1 : 0;
+    result[year] = bucket;
+
+    return result;
+  }, {});
+
+  const entries = Object.values(byYear).sort((a, b) => Number(a.year) - Number(b.year));
+
+  if (entries.length > 0) {
+    return entries;
+  }
+
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 4 }).map((_, index) => ({
+    year: String(currentYear - (3 - index)),
+    count: 0,
+    size: 0,
+    summaries: 0,
+  }));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function seededNoise(seed: number) {
+  const raw = Math.sin(seed * 12.9898) * 43758.5453;
+  return raw - Math.floor(raw);
+}
+
+function StorageTrendPanel({
+  series,
+  totalFiles,
+  totalBytes,
+  summaryCount,
+  latestUpdate,
+  dominantYear,
+}: {
+  series: Array<{ year: string; count: number; size: number; summaries: number }>;
+  totalFiles: number;
+  totalBytes: number;
+  summaryCount: number;
+  latestUpdate: string;
+  dominantYear: string | null;
+}) {
+  const chartWidth = 640;
+  const chartHeight = 180;
+  const paddingX = 18;
+  const paddingTop = 18;
+  const paddingBottom = 28;
+  const usableWidth = chartWidth - paddingX * 2;
+  const usableHeight = chartHeight - paddingTop - paddingBottom;
+  const maxValue = Math.max(...series.map((item) => item.count), 1);
+  const minValue = Math.min(...series.map((item) => item.count), 0);
+  const valueRange = Math.max(maxValue - minValue, 1);
+  const points = series.map((item, index) => {
+    const ratio = series.length === 1 ? 0.5 : index / (series.length - 1);
+    const x = paddingX + ratio * usableWidth;
+    const y =
+      paddingTop + usableHeight - ((item.count - minValue) / valueRange) * usableHeight;
+
+    return {
+      ...item,
+      x,
+      y,
+    };
+  });
+
+  const sparklinePoints =
+    points.length > 1
+      ? points.flatMap((point, index) => {
+          const nextPoint = points[index + 1];
+
+          if (!nextPoint) {
+            return [point];
+          }
+
+          const stepCount = 12;
+
+          return Array.from({ length: stepCount }, (_, stepIndex) => {
+            const progress = stepIndex / stepCount;
+            const x = point.x + (nextPoint.x - point.x) * progress;
+            const baseY = point.y + (nextPoint.y - point.y) * progress;
+            const sway =
+              (seededNoise(index * 100 + stepIndex + point.count + nextPoint.count) - 0.5) *
+              34;
+            const spike =
+              stepIndex % 5 === 2
+                ? (seededNoise(index * 13 + stepIndex) > 0.5 ? -22 : 16)
+                : 0;
+            const y = clamp(
+              baseY - (sway + spike) * Math.sin(Math.PI * progress),
+              paddingTop + 6,
+              chartHeight - paddingBottom - 6,
+            );
+
+            return {
+              x,
+              y,
+            };
+          });
+        })
+      : points.map((point, index) => ({
+          x:
+            paddingX +
+            (usableWidth / 7) * index,
+          y: clamp(
+            point.y -
+              (seededNoise(index + point.count) - 0.5) * 30,
+            paddingTop + 8,
+            chartHeight - paddingBottom - 8,
+          ),
+        }));
+  const sparklinePath = sparklinePoints
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+  const firstValue = series[0]?.count ?? 0;
+  const lastValue = series[series.length - 1]?.count ?? 0;
+  const trendDelta =
+    firstValue === 0 ? (lastValue > 0 ? 100 : 0) : ((lastValue - firstValue) / firstValue) * 100;
+  const trendLabel = `${trendDelta >= 0 ? "+" : ""}${Math.round(trendDelta)}%`;
+  const trendTone =
+    trendDelta >= 0 ? "text-emerald-600" : "text-rose-600";
+
+  return (
+    <Card className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70 sm:rounded-[1.8rem] sm:p-6">
+      <div className="flex flex-col gap-6 xl:flex-row">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+                <TrendingUp className="h-3.5 w-3.5" />
+                Storage Trend
+              </div>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
+                Archive activity view
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                A chart-style view of how many files are stored each year.
+              </p>
+            </div>
+
+            <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                Trend change
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-950">
+                {trendLabel}
+              </p>
+              <p className="mt-1 text-xs text-emerald-800/80">
+                Compared with the earliest year shown
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white p-4 text-slate-950 shadow-[0_24px_60px_-34px_rgba(15,23,42,0.25)] sm:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  File count curve
+                </p>
+                <div className="mt-2 flex items-end gap-3">
+                  <p className="text-3xl font-semibold tracking-tight text-slate-950">
+                    {totalFiles}
+                  </p>
+                  <p className={`pb-1 text-sm font-medium ${trendTone}`}>
+                    {trendLabel}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm sm:min-w-[220px]">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                    Strongest year
+                  </p>
+                  <p className="mt-1 font-medium text-slate-950">
+                    {dominantYear ?? "--"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                    Latest update
+                  </p>
+                  <p className="mt-1 font-medium text-slate-950">{latestUpdate}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <svg
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                className="h-[180px] w-full"
+                preserveAspectRatio="none"
+                aria-label="Storage trend chart"
+              >
+                {sparklinePath ? (
+                  <polyline
+                    points={sparklinePath}
+                    fill="none"
+                    stroke="#15803d"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ) : null}
+
+                {[points[0], points[points.length - 1]]
+                  .filter((point, index, array): point is (typeof points)[number] => Boolean(point) && array.findIndex((candidate) => candidate?.year === point?.year) === index)
+                  .map((point) => (
+                  <g key={point.year}>
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r="3.5"
+                      fill="#ffffff"
+                      stroke="#15803d"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x={point.x}
+                      y={chartHeight - 10}
+                      textAnchor="middle"
+                      fill="#64748b"
+                      fontSize="12"
+                      fontWeight="600"
+                    >
+                      {point.year}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:min-w-[230px]">
+          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Total storage
+            </p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+              {formatFileSize(totalBytes)}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Combined uploaded file size
+            </p>
+          </div>
+          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Saved summaries
+            </p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+              {summaryCount}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Files with ready-to-read summaries
+            </p>
+          </div>
+          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Years tracked
+            </p>
+            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+              {new Set(series.map((item) => item.year)).size}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Archive range currently visible
+            </p>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function getPreviewKind(file: BotFileRecord | null) {
@@ -210,7 +631,12 @@ export function DashboardPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<BotFileRecord | null>(null);
   const summaryAttemptedIds = React.useRef(new Set<string>());
 
+  React.useEffect(() => {
+    document.title = "Goa Community College File Storage Portal";
+  }, []);
+
   const years = React.useMemo(() => buildYearOptions(files), [files]);
+  const trendSeries = React.useMemo(() => buildTrendSeries(files), [files]);
 
   const sortedFiles = React.useMemo(
     () =>
@@ -493,38 +919,38 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="theme min-h-screen bg-[#f5f7fb] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-4">
+    <div className="theme min-h-screen bg-[#f5f7fb] px-3 py-4 text-slate-900 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3 sm:gap-4">
             <img
               src={collegeLogo}
               alt="Goa Community College logo"
-              className="h-16 w-16 rounded-full border border-slate-200 bg-white object-cover shadow-sm"
+              className="h-14 w-14 rounded-full border border-slate-200 bg-white object-cover shadow-sm sm:h-16 sm:w-16"
             />
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Goa Community College
               </p>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
                 Simple File Storage
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                 Signed-in users can upload, rename, download, and delete files in
                 their own workspace. File content cannot be edited.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 md:items-end">
-            <p className="text-sm text-slate-500">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:w-auto lg:flex-col lg:items-end">
+            <p className="text-sm text-slate-500 break-all sm:text-right">
               Signed in as <span className="font-medium text-slate-700">{user?.email}</span>
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full"
+                className="w-full rounded-full sm:w-auto"
                 onClick={() => void handleSignOut()}
                 disabled={isSigningOut}
               >
@@ -533,7 +959,7 @@ export function DashboardPage() {
               </Button>
               <Button
                 type="button"
-                className="rounded-full bg-slate-700 text-white hover:bg-slate-600"
+                className="w-full rounded-full bg-slate-700 text-white hover:bg-slate-600 sm:w-auto"
                 onClick={() => setIsUploadOpen(true)}
               >
                 <Upload className="h-4 w-4" />
@@ -571,35 +997,18 @@ export function DashboardPage() {
         </section>
 
         <section>
-          <Card className="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/70">
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-              Quick Analytics
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Lightweight home page insights.
-            </p>
-
-            <div className="mt-5 space-y-3">
-              <InsightLine>
-                {mostCommonYear
-                  ? `Most files are from ${mostCommonYear} and can be filtered by year.`
-                  : "Upload a file to start seeing year-based insights."}
-              </InsightLine>
-              <InsightLine>
-                {summaryCount > 0
-                  ? `${summaryCount} stored summaries are available for quick context.`
-                  : "Summaries will be saved automatically when available during upload."}
-              </InsightLine>
-              <InsightLine>
-                The system remains intentionally simple: upload, rename,
-                download, and delete.
-              </InsightLine>
-            </div>
-          </Card>
+          <StorageTrendPanel
+            series={trendSeries}
+            totalFiles={files.length}
+            totalBytes={totalBytes}
+            summaryCount={summaryCount}
+            latestUpdate={latestFile ? formatDateStamp(latestFile.updated_at) : "--"}
+            dominantYear={mostCommonYear}
+          />
         </section>
 
         <section>
-          <Card className="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/70">
+          <Card className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:rounded-[1.8rem] sm:p-6">
             <div className="flex flex-col gap-4">
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
@@ -608,10 +1017,6 @@ export function DashboardPage() {
                 <p className="mt-1 text-sm text-slate-500">
                   Simple list of stored files with year filter.
                 </p>
-              </div>
-
-              <div className="rounded-[1.1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Session active for {user?.email ?? "your account"}.
               </div>
 
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -625,10 +1030,10 @@ export function DashboardPage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-3 self-end">
+                <div className="flex w-full items-center gap-3 md:w-auto md:self-end">
                   <span className="text-sm text-slate-500">Year</span>
                   <Select value={yearFilter} onValueChange={setYearFilter}>
-                    <SelectTrigger className="h-11 w-[130px] rounded-2xl border-slate-200 bg-white">
+                    <SelectTrigger className="h-11 w-full rounded-2xl border-slate-200 bg-white md:w-[130px]">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
@@ -660,119 +1065,140 @@ export function DashboardPage() {
                   description="Try a different search term or switch the year filter back to All."
                 />
               ) : (
-                <div className="overflow-hidden rounded-[1.25rem] border border-slate-200">
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow className="hover:bg-slate-50">
-                        <TableHead className="px-4 py-3">Name</TableHead>
-                        <TableHead className="px-4 py-3">Type</TableHead>
-                        <TableHead className="px-4 py-3">Year</TableHead>
-                        <TableHead className="px-4 py-3">Size</TableHead>
-                        <TableHead className="px-4 py-3">Updated</TableHead>
-                        <TableHead className="px-4 py-3 text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredFiles.map((file) => (
-                        <TableRow
-                          key={file.id}
-                          className="cursor-pointer hover:bg-slate-50/80"
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setPreviewFile(file)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              setPreviewFile(file);
-                            }
-                          }}
-                        >
-                          <TableCell className="px-4 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">
-                                <FileText className="h-4 w-4" />
-                              </div>
-                              <span className="font-medium text-slate-900">
-                                {file.name}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-4 py-4">
-                            <Badge
-                              variant="outline"
-                              className="rounded-full border-slate-200 bg-white px-2.5 py-0.5 text-slate-600"
-                            >
-                              {file.file_type ?? "FILE"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="px-4 py-4">
-                            <Badge
-                              variant="outline"
-                              className="rounded-full border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-600"
-                            >
-                              {file.year}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="px-4 py-4 text-slate-600">
-                            {formatFileSize(file.file_size)}
-                          </TableCell>
-                          <TableCell className="px-4 py-4 text-slate-600">
-                            {formatDateStamp(file.updated_at)}
-                          </TableCell>
-                          <TableCell className="px-4 py-4">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="rounded-full"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setRenameTarget(file);
-                                  setRenameName(file.name);
-                                }}
-                              >
-                                <PencilLine className="h-4 w-4" />
-                                <span className="sr-only">Rename file</span>
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="rounded-full"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleDownload(file);
-                                }}
-                                disabled={downloadingFileId === file.id}
-                              >
-                                {downloadingFileId === file.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                                <span className="sr-only">Download file</span>
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setDeleteTarget(file);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Delete file</span>
-                              </Button>
-                            </div>
-                          </TableCell>
+                <>
+                  <div className="space-y-3 md:hidden">
+                    {filteredFiles.map((file) => (
+                      <MobileFileCard
+                        key={file.id}
+                        file={file}
+                        isDownloading={downloadingFileId === file.id}
+                        onOpen={() => setPreviewFile(file)}
+                        onRename={() => {
+                          setRenameTarget(file);
+                          setRenameName(file.name);
+                        }}
+                        onDownload={() => {
+                          void handleDownload(file);
+                        }}
+                        onDelete={() => setDeleteTarget(file)}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="hidden overflow-hidden rounded-[1.25rem] border border-slate-200 md:block">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow className="hover:bg-slate-50">
+                          <TableHead className="px-4 py-3">Name</TableHead>
+                          <TableHead className="px-4 py-3">Type</TableHead>
+                          <TableHead className="px-4 py-3">Year</TableHead>
+                          <TableHead className="px-4 py-3">Size</TableHead>
+                          <TableHead className="px-4 py-3">Updated</TableHead>
+                          <TableHead className="px-4 py-3 text-right">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredFiles.map((file) => (
+                          <TableRow
+                            key={file.id}
+                            className="cursor-pointer hover:bg-slate-50/80"
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setPreviewFile(file)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setPreviewFile(file);
+                              }
+                            }}
+                          >
+                            <TableCell className="px-4 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                                  <FileText className="h-4 w-4" />
+                                </div>
+                                <span className="font-medium text-slate-900">
+                                  {file.name}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-4 py-4">
+                              <Badge
+                                variant="outline"
+                                className="rounded-full border-slate-200 bg-white px-2.5 py-0.5 text-slate-600"
+                              >
+                                {file.file_type ?? "FILE"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-4">
+                              <Badge
+                                variant="outline"
+                                className="rounded-full border-slate-200 bg-slate-50 px-2.5 py-0.5 text-slate-600"
+                              >
+                                {file.year}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-slate-600">
+                              {formatFileSize(file.file_size)}
+                            </TableCell>
+                            <TableCell className="px-4 py-4 text-slate-600">
+                              {formatDateStamp(file.updated_at)}
+                            </TableCell>
+                            <TableCell className="px-4 py-4">
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-full"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setRenameTarget(file);
+                                    setRenameName(file.name);
+                                  }}
+                                >
+                                  <PencilLine className="h-4 w-4" />
+                                  <span className="sr-only">Rename file</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-full"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void handleDownload(file);
+                                  }}
+                                  disabled={downloadingFileId === file.id}
+                                >
+                                  {downloadingFileId === file.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )}
+                                  <span className="sr-only">Download file</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setDeleteTarget(file);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Delete file</span>
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </div>
           </Card>
@@ -801,7 +1227,7 @@ export function DashboardPage() {
           }
         }}
       >
-        <DialogContent className="max-w-lg rounded-[1.5rem] border border-slate-200 bg-white">
+        <DialogContent className="max-h-[90vh] max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-[1.35rem] border border-slate-200 bg-white p-4 sm:max-w-lg sm:rounded-[1.5rem] sm:p-6">
           <DialogHeader>
             <DialogTitle>{previewFile?.name ?? "File details"}</DialogTitle>
             <DialogDescription>
@@ -811,7 +1237,7 @@ export function DashboardPage() {
 
           {previewFile ? (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
                     Preview
@@ -830,30 +1256,30 @@ export function DashboardPage() {
 
                 <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                   {isPreviewLoading ? (
-                    <div className="flex h-[16rem] items-center justify-center text-sm text-slate-500">
+                    <div className="flex h-[13rem] items-center justify-center text-sm text-slate-500 sm:h-[16rem]">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Loading preview...
                     </div>
                   ) : previewError ? (
-                    <div className="flex h-[16rem] items-center justify-center px-6 text-center text-sm text-rose-600">
+                    <div className="flex h-[13rem] items-center justify-center px-6 text-center text-sm text-rose-600 sm:h-[16rem]">
                       {previewError}
                     </div>
                   ) : previewKind === "image" && previewUrl ? (
-                    <div className="flex min-h-[12rem] items-center justify-center bg-slate-50 p-4">
+                    <div className="flex min-h-[10rem] items-center justify-center bg-slate-50 p-4 sm:min-h-[12rem]">
                       <img
                         src={previewUrl}
                         alt={previewFile.name}
-                        className="max-h-[16rem] w-auto max-w-full rounded-xl object-contain"
+                        className="max-h-[13rem] w-auto max-w-full rounded-xl object-contain sm:max-h-[16rem]"
                       />
                     </div>
                   ) : previewKind === "pdf" && previewUrl ? (
                     <iframe
                       title={`${previewFile.name} preview`}
                       src={previewUrl}
-                      className="h-[18rem] w-full bg-white"
+                      className="h-[14rem] w-full bg-white sm:h-[18rem]"
                     />
                   ) : (
-                    <div className="flex h-[12rem] items-center justify-center px-6 text-center text-sm text-slate-500">
+                    <div className="flex h-[10rem] items-center justify-center px-6 text-center text-sm text-slate-500 sm:h-[12rem]">
                       Preview is available for PDF and image files only.
                     </div>
                   )}
@@ -933,7 +1359,7 @@ export function DashboardPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md rounded-[1.5rem] border border-slate-200 bg-white">
+        <DialogContent className="max-w-[calc(100%-1.25rem)] rounded-[1.35rem] border border-slate-200 bg-white p-4 sm:max-w-md sm:rounded-[1.5rem] sm:p-6">
           <DialogHeader>
             <DialogTitle>Rename file</DialogTitle>
             <DialogDescription>
@@ -989,7 +1415,7 @@ export function DashboardPage() {
           }
         }}
       >
-        <DialogContent className="max-w-md rounded-[1.5rem] border border-slate-200 bg-white">
+        <DialogContent className="max-w-[calc(100%-1.25rem)] rounded-[1.35rem] border border-slate-200 bg-white p-4 sm:max-w-md sm:rounded-[1.5rem] sm:p-6">
           <DialogHeader>
             <DialogTitle>Delete file</DialogTitle>
             <DialogDescription>

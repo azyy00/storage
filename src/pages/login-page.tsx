@@ -11,24 +11,28 @@ import { useAuth } from "@/providers/auth-provider";
 export function LoginPage() {
   const { user, isLoading, isConfigured } = useAuth();
 
+  React.useEffect(() => {
+    document.title = "Goa Community College File Storage Portal";
+  }, []);
+
   if (isConfigured && !isLoading && user) {
     return <Navigate to="/" replace />;
   }
 
   return (
-    <div className="theme min-h-screen bg-[#f5f7fb] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center">
-        <div className="flex w-full max-w-md flex-col items-center gap-4">
+    <div className="theme min-h-screen bg-[#f5f7fb] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center justify-center sm:min-h-[calc(100vh-4rem)]">
+        <div className="flex w-full max-w-md flex-col items-center gap-4 sm:gap-5">
           <div className="flex flex-col items-center text-center">
             <img
               src={collegeLogo}
               alt="Goa Community College logo"
-              className="h-24 w-24 rounded-full border border-slate-200 bg-white object-cover shadow-sm"
+              className="h-20 w-20 rounded-full border border-slate-200 bg-white object-cover shadow-sm sm:h-24 sm:w-24"
             />
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
+            <h1 className="mt-4 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
               Goa Community College
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 sm:text-base">
               Simple File Storage Portal
             </p>
           </div>

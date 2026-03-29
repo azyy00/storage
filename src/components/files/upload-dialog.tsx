@@ -189,8 +189,8 @@ export function UploadDialog({
         }
       }}
     >
-      <DialogContent className="max-w-xl rounded-[1.75rem] border border-slate-200 bg-white p-0">
-        <DialogHeader className="border-b border-slate-200 px-6 py-5">
+      <DialogContent className="max-h-[90vh] max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-0 sm:max-w-xl sm:rounded-[1.75rem]">
+        <DialogHeader className="border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
           <DialogTitle className="text-xl font-semibold text-slate-950">
             Upload file
           </DialogTitle>
@@ -199,7 +199,7 @@ export function UploadDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-5 px-6 py-6" onSubmit={handleSubmit}>
+        <form className="space-y-5 px-4 py-5 sm:px-6 sm:py-6" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor="upload-file">File</Label>
             <label
