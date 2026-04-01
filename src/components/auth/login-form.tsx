@@ -133,7 +133,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         </div>
 
         <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
-          {mode === "login" ? "Access Simple File Storage" : "Create Your Account"}
+          {mode === "login" ? "Access GCC BOT File Storage" : "Create Your Account"}
         </h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">
           {mode === "login"

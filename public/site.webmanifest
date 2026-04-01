@@ -1,7 +1,7 @@
 {
-  "name": "Goa Community College File Storage Portal",
-  "short_name": "GCC Storage",
-  "description": "Simple file storage portal for Goa Community College.",
+  "name": "GCC BOT File Storage",
+  "short_name": "GCC BOT",
+  "description": "GCC BOT File Storage for Goa Community College.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f7fb",

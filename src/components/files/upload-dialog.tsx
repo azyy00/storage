@@ -22,7 +22,6 @@ import {
 import {
   BOT_STORAGE_BUCKET,
   BOT_DEFAULT_CATEGORY,
-  BOT_DEFAULT_YEARS,
 } from "@/lib/constants";
 import { detectFileType, formatFileSize } from "@/lib/file-utils";
 import { supabase } from "@/lib/supabaseClient";
@@ -35,6 +34,7 @@ type UploadDialogProps = {
   onOpenChange: (open: boolean) => void;
   userId: string;
   uploader: string;
+  years: string[];
   onUploaded: (file: BotFileRecord) => Promise<void> | void;
 };
 
@@ -45,6 +45,7 @@ export function UploadDialog({
   onOpenChange,
   userId,
   uploader,
+  years,
   onUploaded,
 }: UploadDialogProps) {
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
@@ -249,13 +250,11 @@ export function UploadDialog({
                   <SelectValue placeholder="Choose a year" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from(new Set([currentYear, ...BOT_DEFAULT_YEARS]))
-                    .sort((a, b) => Number(b) - Number(a))
-                    .map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value}
-                      </SelectItem>
-                    ))}
+                  {years.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

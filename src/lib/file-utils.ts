@@ -30,7 +30,7 @@ export function detectFileType(fileName: string) {
 
 export function formatFileSize(bytes: number | null) {
   if (!bytes || Number.isNaN(bytes)) {
-    return "Unknown";
+    return "--";
   }
 
   if (bytes >= 1024 ** 3) {
@@ -93,9 +93,15 @@ export function getCategoryTone(category: string) {
   return tones[category] ?? "border-slate-200 bg-slate-100 text-slate-700";
 }
 
-export function buildYearOptions(files: BotFileRecord[]) {
+export function buildYearOptions(files: BotFileRecord[], extraYears: string[] = []) {
+  const currentYear = String(new Date().getFullYear());
+
   return Array.from(
-    new Set([...BOT_DEFAULT_YEARS, ...files.map((file) => file.year)]),
+    new Set(
+      [currentYear, ...BOT_DEFAULT_YEARS, ...extraYears, ...files.map((file) => file.year)]
+        .map((year) => year.trim())
+        .filter(Boolean),
+    ),
   ).sort((a, b) => Number(b) - Number(a));
 }
 

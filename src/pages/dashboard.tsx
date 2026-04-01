@@ -7,8 +7,8 @@ import {
   Loader2,
   LogOut,
   PencilLine,
+  Plus,
   Search,
-  TrendingUp,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -59,6 +59,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/providers/auth-provider";
 import type { BotFileRecord } from "@/types/database";
 
+const CUSTOM_YEAR_STORAGE_KEY = "bot-storage-custom-years";
+
 function MetricCard({
   label,
   value,
@@ -71,17 +73,17 @@ function MetricCard({
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <Card className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:rounded-[1.6rem] sm:p-5">
-      <div className="flex items-start gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 sm:h-11 sm:w-11">
-          <Icon className="h-5 w-5" />
+    <Card className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-3.5 shadow-sm shadow-slate-200/70 sm:rounded-[1.5rem] sm:px-5 sm:py-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 sm:h-10 sm:w-10">
+          <Icon className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0">
-          <p className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+          <p className="text-[1.95rem] font-semibold leading-none tracking-tight text-slate-950 sm:text-[2.2rem]">
             {value}
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-700">{label}</p>
-          <p className="mt-1 text-sm text-slate-500">{hint}</p>
+          <p className="mt-2 text-sm font-medium text-slate-700">{label}</p>
+          <p className="mt-1 text-[13px] leading-5 text-slate-500">{hint}</p>
         </div>
       </div>
     </Card>
@@ -160,17 +162,25 @@ function LoadingTable() {
 function MobileFileCard({
   file,
   isDownloading,
+  isDeleteOpen,
+  isDeleting,
   onOpen,
   onRename,
   onDownload,
-  onDelete,
+  onDeleteToggle,
+  onDeleteCancel,
+  onDeleteConfirm,
 }: {
   file: BotFileRecord;
   isDownloading: boolean;
+  isDeleteOpen: boolean;
+  isDeleting: boolean;
   onOpen: () => void;
   onRename: () => void;
   onDownload: () => void;
-  onDelete: () => void;
+  onDeleteToggle: () => void;
+  onDeleteCancel: () => void;
+  onDeleteConfirm: () => void;
 }) {
   return (
     <div
@@ -257,426 +267,105 @@ function MobileFileCard({
           )}
           Download
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-          onClick={(event) => {
-            event.stopPropagation();
-            onDelete();
+        <DeleteDropdownAction
+          fileName={file.name}
+          isOpen={isDeleteOpen}
+          isDeleting={isDeleting}
+          triggerMode="mobile"
+          onOpenChange={(open) => {
+            if (open) {
+              onDeleteToggle();
+            } else {
+              onDeleteCancel();
+            }
           }}
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete
-        </Button>
+          onConfirm={onDeleteConfirm}
+        />
       </div>
     </div>
   );
 }
 
-type TrendSeriesItem = {
-  year: string;
-  count: number;
-  size: number;
-  latestUpload: string | null;
-  summaries: number;
-};
-
-type ActivityCurvePoint = {
-  key: string;
-  year: string;
-  label: string;
-  fullLabel: string;
-  value: number;
-  fileSize: number;
-  timestamp: number;
-};
-
-function buildTrendSeries(files: BotFileRecord[]) {
-  const byYear = files.reduce<Record<string, TrendSeriesItem>>((result, file) => {
-    const year = file.year;
-    const bucket = result[year] ?? {
-      year,
-      count: 0,
-      size: 0,
-      latestUpload: null,
-      summaries: 0,
-    };
-
-    bucket.count += 1;
-    bucket.size += file.file_size ?? 0;
-    bucket.summaries += file.summary?.trim() ? 1 : 0;
-    const uploadedAt = file.created_at ?? file.updated_at ?? null;
-    if (
-      uploadedAt &&
-      (!bucket.latestUpload ||
-        new Date(uploadedAt).getTime() > new Date(bucket.latestUpload).getTime())
-    ) {
-      bucket.latestUpload = uploadedAt;
-    }
-    result[year] = bucket;
-
-    return result;
-  }, {});
-
-  const entries = Object.values(byYear).sort((a, b) => Number(a.year) - Number(b.year));
-
-  if (entries.length > 0) {
-    return entries;
-  }
-
-  const currentYear = new Date().getFullYear();
-  return Array.from({ length: 4 }).map((_, index) => ({
-    year: String(currentYear - (3 - index)),
-    count: 0,
-    size: 0,
-    latestUpload: null,
-    summaries: 0,
-  }));
-}
-
-function getMostCommonYear(files: BotFileRecord[]) {
-  if (files.length === 0) {
-    return null;
-  }
-
-  const counts = files.reduce<Record<string, number>>((result, file) => {
-    result[file.year] = (result[file.year] ?? 0) + 1;
-    return result;
-  }, {});
-
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-}
-
-function buildActivityCurve(files: BotFileRecord[]) {
-  const uploads = files
-    .map((file) => {
-      const rawTimestamp = file.created_at ?? file.updated_at ?? null;
-      if (!rawTimestamp) {
-        return null;
-      }
-
-      const timestamp = new Date(rawTimestamp).getTime();
-      if (Number.isNaN(timestamp)) {
-        return null;
-      }
-
-      const pointDate = new Date(timestamp);
-
-      return {
-        key: file.id,
-        year: String(pointDate.getFullYear()),
-        label: file.name,
-        fullLabel: new Intl.DateTimeFormat("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }).format(pointDate),
-        fileSize: file.file_size ?? 0,
-        timestamp,
-      };
-    })
-    .filter(
-      (
-        point,
-      ): point is Omit<ActivityCurvePoint, "value"> =>
-        Boolean(point),
-    )
-    .sort((a, b) => a.timestamp - b.timestamp);
-
-  if (uploads.length === 0) {
-    const currentYear = String(new Date().getFullYear());
-    return [
-      {
-        key: "empty-start",
-        year: currentYear,
-        label: "No uploads yet",
-        fullLabel: currentYear,
-        value: 0,
-        fileSize: 0,
-        timestamp: Date.now(),
-      },
-      {
-        key: "empty-end",
-        year: currentYear,
-        label: "No uploads yet",
-        fullLabel: currentYear,
-        value: 0,
-        fileSize: 0,
-        timestamp: Date.now(),
-      },
-    ] satisfies ActivityCurvePoint[];
-  }
-
-  let previousValue = 0;
-
-  const points = uploads.map((upload, index) => {
-    const normalizedSize = Math.max(1, Math.sqrt(Math.max(upload.fileSize, 1024) / 1024));
-    const nextValue =
-      index === 0 ? normalizedSize : previousValue * 0.38 + normalizedSize * 0.62;
-
-    previousValue = nextValue;
-
-    return {
-      ...upload,
-      value: Number(nextValue.toFixed(2)),
-    };
-  });
-
-  if (points.length === 1) {
-    const onlyPoint = points[0];
-    return [
-      {
-        ...onlyPoint,
-        key: `${onlyPoint.key}-start`,
-        value: Number(Math.max(0, onlyPoint.value * 0.9).toFixed(2)),
-      },
-      {
-        ...onlyPoint,
-        key: `${onlyPoint.key}-end`,
-      },
-    ];
-  }
-
-  return points;
-}
-
-function StorageTrendPanel({
-  series,
-  activityCurve,
-  totalFiles,
-  totalBytes,
-  summaryCount,
-  latestUpdate,
-  dominantYear,
+function DeleteDropdownAction({
+  fileName,
+  isOpen,
+  isDeleting,
+  triggerMode,
+  onOpenChange,
+  onConfirm,
 }: {
-  series: TrendSeriesItem[];
-  activityCurve: ActivityCurvePoint[];
-  totalFiles: number;
-  totalBytes: number;
-  summaryCount: number;
-  latestUpdate: string;
-  dominantYear: string | null;
+  fileName: string;
+  isOpen: boolean;
+  isDeleting: boolean;
+  triggerMode: "desktop" | "mobile";
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
 }) {
-  const chartWidth = 640;
-  const chartHeight = 180;
-  const paddingX = 18;
-  const paddingTop = 18;
-  const paddingBottom = 28;
-  const usableWidth = chartWidth - paddingX * 2;
-  const usableHeight = chartHeight - paddingTop - paddingBottom;
-  const maxValue = Math.max(...activityCurve.map((item) => item.value), 1);
-  const minValue = Math.min(...activityCurve.map((item) => item.value), 0);
-  const valueRange = Math.max(maxValue - minValue, 1);
-  const points = activityCurve.map((item, index) => {
-    const ratio = activityCurve.length === 1 ? 0.5 : index / (activityCurve.length - 1);
-    const x = paddingX + ratio * usableWidth;
-    const y =
-      paddingTop + usableHeight - ((item.value - minValue) / valueRange) * usableHeight;
-
-    return {
-      ...item,
-      x,
-      y,
-    };
-  });
-  const linePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const baselineY = chartHeight - paddingBottom;
-  const areaPoints =
-    points.length > 0
-      ? `${linePoints} ${points[points.length - 1].x},${baselineY} ${points[0].x},${baselineY}`
-      : "";
-  const peakPoint = activityCurve.reduce<ActivityCurvePoint | null>((result, point) => {
-    if (!result || point.value > result.value) {
-      return point;
-    }
-
-    return result;
-  }, null);
-  const gradientId = React.useId();
+  const isDesktop = triggerMode === "desktop";
 
   return (
-    <Card className="rounded-[1.6rem] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/70 sm:rounded-[1.8rem] sm:p-6">
-      <div className="flex flex-col gap-6 xl:flex-row">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-                <TrendingUp className="h-3.5 w-3.5" />
-                Storage Trend
-              </div>
-              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-                Archive activity view
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                A chart-style view of upload activity across your stored files.
-              </p>
-            </div>
+    <div
+      className="relative"
+      data-delete-dropdown-container
+      onClick={(event) => event.stopPropagation()}
+    >
+      <Button
+        type="button"
+        variant={isDesktop ? "ghost" : "outline"}
+        size={isDesktop ? "icon-sm" : "sm"}
+        className={
+          isDesktop
+            ? "rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+            : "rounded-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+        }
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenChange(!isOpen);
+        }}
+        disabled={isDeleting}
+      >
+        <Trash2 className="h-4 w-4" />
+        {isDesktop ? <span className="sr-only">Delete file</span> : "Delete"}
+      </Button>
 
-            <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Peak upload
-              </p>
-              <p className="mt-1 text-2xl font-semibold text-emerald-950">
-                {peakPoint ? formatFileSize(peakPoint.fileSize) : "--"}
-              </p>
-              <p className="mt-1 text-xs text-emerald-800/80">
-                Largest upload represented in the visible curve
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-5 overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white p-4 text-slate-950 shadow-[0_24px_60px_-34px_rgba(15,23,42,0.25)] sm:p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Upload activity curve
-                </p>
-                <div className="mt-2">
-                  <p className="text-3xl font-semibold tracking-tight text-slate-950">
-                    {totalFiles}
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm sm:min-w-[220px]">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                    Strongest year
-                  </p>
-                  <p className="mt-1 font-medium text-slate-950">
-                    {dominantYear ?? "--"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                    Latest update
-                  </p>
-                  <p className="mt-1 font-medium text-slate-950">{latestUpdate}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <svg
-                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                className="h-[180px] w-full"
-                preserveAspectRatio="none"
-                aria-label="Storage trend chart"
-              >
-                <defs>
-                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#16a34a" stopOpacity="0.18" />
-                    <stop offset="100%" stopColor="#16a34a" stopOpacity="0.02" />
-                  </linearGradient>
-                </defs>
-
-                {Array.from({ length: 4 }).map((_, index) => {
-                  const y = paddingTop + (usableHeight / 3) * index;
-
-                  return (
-                    <line
-                      key={index}
-                      x1={paddingX}
-                      x2={chartWidth - paddingX}
-                      y1={y}
-                      y2={y}
-                      stroke="#e2e8f0"
-                      strokeDasharray="4 6"
-                    />
-                  );
-                })}
-
-                {areaPoints ? (
-                  <polygon points={areaPoints} fill={`url(#${gradientId})`} />
-                ) : null}
-
-                {linePoints ? (
-                  <polyline
-                    points={linePoints}
-                    fill="none"
-                    stroke="#16a34a"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                ) : null}
-
-                {[points[0], points[points.length - 1]]
-                  .filter(
-                    (
-                      point,
-                      index,
-                      array,
-                    ): point is (typeof points)[number] =>
-                      Boolean(point) &&
-                      array.findIndex((candidate) => candidate?.year === point?.year) ===
-                        index,
-                  )
-                  .map((point) => (
-                    <g key={point.year}>
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="3.5"
-                        fill="#ffffff"
-                        stroke="#16a34a"
-                        strokeWidth="2"
-                      />
-                      <text
-                        x={point.x}
-                        y={chartHeight - 10}
-                        textAnchor="middle"
-                        fill="#64748b"
-                        fontSize="12"
-                        fontWeight="600"
-                      >
-                        {point.year}
-                      </text>
-                    </g>
-                  ))}
-              </svg>
-            </div>
+      {isOpen ? (
+        <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-[1.1rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10">
+          <p className="text-sm font-semibold text-slate-900">Delete file?</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+            {fileName}
+          </p>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenChange(false);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="rounded-xl"
+              onClick={(event) => {
+                event.stopPropagation();
+                onConfirm();
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Delete
+            </Button>
           </div>
         </div>
-
-        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:min-w-[230px]">
-          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Total storage
-            </p>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              {formatFileSize(totalBytes)}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Combined uploaded file size
-            </p>
-          </div>
-          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Saved summaries
-            </p>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              {summaryCount}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Files with ready-to-read summaries
-            </p>
-          </div>
-          <div className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Years tracked
-            </p>
-            <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              {new Set(series.map((item) => item.year)).size}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Archive range currently visible
-            </p>
-          </div>
-        </div>
-      </div>
-    </Card>
+      ) : null}
+    </div>
   );
 }
 
@@ -715,11 +404,16 @@ export function DashboardPage() {
   } = useBotFiles(user?.id);
 
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [typeFilter, setTypeFilter] = React.useState("all");
   const [yearFilter, setYearFilter] = React.useState("all");
   const [isUploadOpen, setIsUploadOpen] = React.useState(false);
+  const [isYearDialogOpen, setIsYearDialogOpen] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
   const [isRenaming, setIsRenaming] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [customYears, setCustomYears] = React.useState<string[]>([]);
+  const [pendingYear, setPendingYear] = React.useState("");
+  const [deleteMenuFileId, setDeleteMenuFileId] = React.useState<string | null>(null);
   const [downloadingFileId, setDownloadingFileId] = React.useState<string | null>(
     null,
   );
@@ -731,16 +425,75 @@ export function DashboardPage() {
   const [summaryNotice, setSummaryNotice] = React.useState<string | null>(null);
   const [renameTarget, setRenameTarget] = React.useState<BotFileRecord | null>(null);
   const [renameName, setRenameName] = React.useState("");
-  const [deleteTarget, setDeleteTarget] = React.useState<BotFileRecord | null>(null);
   const summaryAttemptedIds = React.useRef(new Set<string>());
 
   React.useEffect(() => {
-    document.title = "Goa Community College File Storage Portal";
+    document.title = "GCC BOT File Storage";
   }, []);
 
-  const years = React.useMemo(() => buildYearOptions(files), [files]);
-  const trendSeries = React.useMemo(() => buildTrendSeries(files), [files]);
-  const activityCurve = React.useMemo(() => buildActivityCurve(files), [files]);
+  React.useEffect(() => {
+    if (!deleteMenuFileId) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-delete-dropdown-container]")) {
+        return;
+      }
+
+      setDeleteMenuFileId(null);
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setDeleteMenuFileId(null);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [deleteMenuFileId]);
+
+  React.useEffect(() => {
+    try {
+      const storedValue = window.localStorage.getItem(CUSTOM_YEAR_STORAGE_KEY);
+      if (!storedValue) {
+        return;
+      }
+
+      const parsedValue = JSON.parse(storedValue);
+      if (!Array.isArray(parsedValue)) {
+        return;
+      }
+
+      setCustomYears(
+        Array.from(
+          new Set(
+            parsedValue
+              .map((value) => String(value).trim())
+              .filter((value) => /^\d{4}$/.test(value)),
+          ),
+        ).sort((a, b) => Number(b) - Number(a)),
+      );
+    } catch {
+      window.localStorage.removeItem(CUSTOM_YEAR_STORAGE_KEY);
+    }
+  }, []);
+
+  const years = React.useMemo(() => buildYearOptions(files, customYears), [files, customYears]);
+  const fileTypes = React.useMemo(
+    () =>
+      Array.from(new Set(files.map((file) => file.file_type ?? "FILE"))).sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [files],
+  );
 
   const sortedFiles = React.useMemo(
     () =>
@@ -757,15 +510,17 @@ export function DashboardPage() {
 
     return sortedFiles.filter((file) => {
       const matchesYear = yearFilter === "all" || file.year === yearFilter;
+      const normalizedType = file.file_type ?? "FILE";
+      const matchesType = typeFilter === "all" || normalizedType === typeFilter;
       const haystack = [file.name, file.year, file.file_type ?? "", file.uploader ?? ""]
         .join(" ")
         .toLowerCase();
       const matchesQuery =
         normalizedQuery.length === 0 || haystack.includes(normalizedQuery);
 
-      return matchesYear && matchesQuery;
+      return matchesYear && matchesType && matchesQuery;
     });
-  }, [searchQuery, sortedFiles, yearFilter]);
+  }, [searchQuery, sortedFiles, typeFilter, yearFilter]);
 
   const totalBytes = React.useMemo(
     () => files.reduce((sum, file) => sum + (file.file_size ?? 0), 0),
@@ -773,9 +528,45 @@ export function DashboardPage() {
   );
 
   const latestFile = sortedFiles[0] ?? null;
-  const mostCommonYear = getMostCommonYear(files);
-  const summaryCount = files.filter((file) => Boolean(file.summary?.trim())).length;
   const previewKind = React.useMemo(() => getPreviewKind(previewFile), [previewFile]);
+
+  function persistCustomYears(nextYears: string[]) {
+    setCustomYears(nextYears);
+
+    try {
+      window.localStorage.setItem(CUSTOM_YEAR_STORAGE_KEY, JSON.stringify(nextYears));
+    } catch {
+      toast.error("Unable to save the new year on this browser.");
+    }
+  }
+
+  function handleAddYearSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const normalizedYear = pendingYear.replace(/[^\d]/g, "").slice(0, 4);
+
+    if (!/^\d{4}$/.test(normalizedYear)) {
+      toast.error("Enter a valid 4-digit year.");
+      return;
+    }
+
+    if (years.includes(normalizedYear)) {
+      setYearFilter(normalizedYear);
+      setIsYearDialogOpen(false);
+      setPendingYear("");
+      toast("That year already exists.");
+      return;
+    }
+
+    const nextYears = Array.from(new Set([...customYears, normalizedYear])).sort(
+      (a, b) => Number(b) - Number(a),
+    );
+    persistCustomYears(nextYears);
+    setYearFilter(normalizedYear);
+    setIsYearDialogOpen(false);
+    setPendingYear("");
+    toast.success(`Year ${normalizedYear} added.`);
+  }
 
   React.useEffect(() => {
     if (!previewFile || !previewKind || !supabase) {
@@ -982,20 +773,16 @@ export function DashboardPage() {
     }
   }
 
-  async function handleDeleteConfirm() {
-    if (!deleteTarget) {
-      return;
-    }
-
+  async function handleDeleteConfirm(file: BotFileRecord) {
     setIsDeleting(true);
 
     try {
-      await deleteFile(deleteTarget);
-      if (previewFile?.id === deleteTarget.id) {
+      await deleteFile(file);
+      if (previewFile?.id === file.id) {
         setPreviewFile(null);
       }
       toast.success("File deleted.");
-      setDeleteTarget(null);
+      setDeleteMenuFileId(null);
     } catch (deleteError) {
       toast.error(
         deleteError instanceof Error ? deleteError.message : "Unable to delete file.",
@@ -1024,8 +811,8 @@ export function DashboardPage() {
 
   return (
     <div className="theme min-h-screen bg-[#f5f7fb] px-3 py-4 text-slate-900 sm:px-6 sm:py-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-5 sm:space-y-6">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="mx-auto max-w-[1380px] space-y-5 sm:space-y-6">
+        <header className="sticky top-0 z-30 flex flex-col gap-4 border-b border-slate-200 bg-[#f5f7fb]/95 py-3 backdrop-blur supports-[backdrop-filter]:bg-[#f5f7fb]/85 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3 sm:gap-4">
             <img
               src={collegeLogo}
@@ -1037,7 +824,7 @@ export function DashboardPage() {
                 Goa Community College
               </p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                Simple File Storage
+                GCC BOT File Storage
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                 Signed-in users can upload, rename, download, and delete files in
@@ -1073,7 +860,7 @@ export function DashboardPage() {
           </div>
         </header>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Total Files"
             value={String(files.length)}
@@ -1101,18 +888,6 @@ export function DashboardPage() {
         </section>
 
         <section>
-          <StorageTrendPanel
-            series={trendSeries}
-            activityCurve={activityCurve}
-            totalFiles={files.length}
-            totalBytes={totalBytes}
-            summaryCount={summaryCount}
-            latestUpdate={latestFile ? formatDateStamp(latestFile.updated_at) : "--"}
-            dominantYear={mostCommonYear}
-          />
-        </section>
-
-        <section>
           <Card className="rounded-[1.6rem] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/70 sm:rounded-[1.8rem] sm:p-6">
             <div className="flex flex-col gap-4">
               <div>
@@ -1120,7 +895,7 @@ export function DashboardPage() {
                   Files
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Simple list of stored files with year filter.
+                  Simple list of stored files with year and type filters.
                 </p>
               </div>
 
@@ -1135,7 +910,21 @@ export function DashboardPage() {
                   />
                 </div>
 
-                <div className="flex w-full items-center gap-3 md:w-auto md:self-end">
+                <div className="flex w-full flex-wrap items-center gap-3 md:w-auto md:self-end md:justify-end">
+                  <span className="text-sm text-slate-500">Type</span>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="h-11 w-full rounded-2xl border-slate-200 bg-white md:w-[130px]">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      {fileTypes.map((fileType) => (
+                        <SelectItem key={fileType} value={fileType}>
+                          {fileType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <span className="text-sm text-slate-500">Year</span>
                   <Select value={yearFilter} onValueChange={setYearFilter}>
                     <SelectTrigger className="h-11 w-full rounded-2xl border-slate-200 bg-white md:w-[130px]">
@@ -1150,6 +939,15 @@ export function DashboardPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 rounded-2xl px-4"
+                    onClick={() => setIsYearDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add year
+                  </Button>
                 </div>
               </div>
 
@@ -1167,7 +965,7 @@ export function DashboardPage() {
               ) : filteredFiles.length === 0 ? (
                 <EmptyState
                   title="No matching files"
-                  description="Try a different search term or switch the year filter back to All."
+                  description="Try a different search term or switch the type and year filters back to All."
                 />
               ) : (
                 <>
@@ -1177,15 +975,30 @@ export function DashboardPage() {
                         key={file.id}
                         file={file}
                         isDownloading={downloadingFileId === file.id}
-                        onOpen={() => setPreviewFile(file)}
+                        isDeleteOpen={deleteMenuFileId === file.id}
+                        isDeleting={isDeleting && deleteMenuFileId === file.id}
+                        onOpen={() => {
+                          setDeleteMenuFileId(null);
+                          setPreviewFile(file);
+                        }}
                         onRename={() => {
+                          setDeleteMenuFileId(null);
                           setRenameTarget(file);
                           setRenameName(file.name);
                         }}
                         onDownload={() => {
+                          setDeleteMenuFileId(null);
                           void handleDownload(file);
                         }}
-                        onDelete={() => setDeleteTarget(file)}
+                        onDeleteToggle={() =>
+                          setDeleteMenuFileId((current) =>
+                            current === file.id ? null : file.id,
+                          )
+                        }
+                        onDeleteCancel={() => setDeleteMenuFileId(null)}
+                        onDeleteConfirm={() => {
+                          void handleDeleteConfirm(file);
+                        }}
                       />
                     ))}
                   </div>
@@ -1209,10 +1022,14 @@ export function DashboardPage() {
                             className="cursor-pointer hover:bg-slate-50/80"
                             role="button"
                             tabIndex={0}
-                            onClick={() => setPreviewFile(file)}
+                            onClick={() => {
+                              setDeleteMenuFileId(null);
+                              setPreviewFile(file);
+                            }}
                             onKeyDown={(event) => {
                               if (event.key === "Enter" || event.key === " ") {
                                 event.preventDefault();
+                                setDeleteMenuFileId(null);
                                 setPreviewFile(file);
                               }
                             }}
@@ -1258,6 +1075,7 @@ export function DashboardPage() {
                                   className="rounded-full"
                                   onClick={(event) => {
                                     event.stopPropagation();
+                                    setDeleteMenuFileId(null);
                                     setRenameTarget(file);
                                     setRenameName(file.name);
                                   }}
@@ -1272,6 +1090,7 @@ export function DashboardPage() {
                                   className="rounded-full"
                                   onClick={(event) => {
                                     event.stopPropagation();
+                                    setDeleteMenuFileId(null);
                                     void handleDownload(file);
                                   }}
                                   disabled={downloadingFileId === file.id}
@@ -1283,19 +1102,18 @@ export function DashboardPage() {
                                   )}
                                   <span className="sr-only">Download file</span>
                                 </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setDeleteTarget(file);
+                                <DeleteDropdownAction
+                                  fileName={file.name}
+                                  isOpen={deleteMenuFileId === file.id}
+                                  isDeleting={isDeleting && deleteMenuFileId === file.id}
+                                  triggerMode="desktop"
+                                  onOpenChange={(open) => {
+                                    setDeleteMenuFileId(open ? file.id : null);
                                   }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Delete file</span>
-                                </Button>
+                                  onConfirm={() => {
+                                    void handleDeleteConfirm(file);
+                                  }}
+                                />
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1316,9 +1134,67 @@ export function DashboardPage() {
           onOpenChange={setIsUploadOpen}
           userId={user.id}
           uploader={user.email ?? "Admin"}
+          years={years}
           onUploaded={handleUploadComplete}
         />
       ) : null}
+
+      <Dialog
+        open={isYearDialogOpen}
+        onOpenChange={(open) => {
+          setIsYearDialogOpen(open);
+          if (!open) {
+            setPendingYear("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-[calc(100%-1.25rem)] rounded-[1.35rem] border border-slate-200 bg-white p-4 sm:max-w-md sm:rounded-[1.5rem] sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Add year</DialogTitle>
+            <DialogDescription>
+              Create a new year option for filtering and future uploads.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form className="space-y-4" onSubmit={handleAddYearSubmit}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="new-year">
+                Year
+              </label>
+              <Input
+                id="new-year"
+                value={pendingYear}
+                onChange={(event) =>
+                  setPendingYear(event.target.value.replace(/[^\d]/g, "").slice(0, 4))
+                }
+                inputMode="numeric"
+                maxLength={4}
+                className="h-11 rounded-2xl"
+                placeholder={String(new Date().getFullYear() + 1)}
+              />
+              <p className="text-xs text-slate-500">
+                Added years will also appear in the upload form.
+              </p>
+            </div>
+
+            <DialogFooter className="border-t border-slate-200 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsYearDialogOpen(false);
+                  setPendingYear("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-slate-900 text-white hover:bg-slate-800">
+                Save year
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(previewFile)}
@@ -1512,51 +1388,6 @@ export function DashboardPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={Boolean(deleteTarget)}
-        onOpenChange={(open) => {
-          if (!open && !isDeleting) {
-            setDeleteTarget(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-[calc(100%-1.25rem)] rounded-[1.35rem] border border-slate-200 bg-white p-4 sm:max-w-md sm:rounded-[1.5rem] sm:p-6">
-          <DialogHeader>
-            <DialogTitle>Delete file</DialogTitle>
-            <DialogDescription>
-              This will remove the file record and its stored file.
-            </DialogDescription>
-          </DialogHeader>
-
-          <p className="text-sm text-slate-600">
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-slate-900">
-              {deleteTarget?.name ?? "this file"}
-            </span>
-            ?
-          </p>
-
-          <DialogFooter className="border-t border-slate-200 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => void handleDeleteConfirm()}
-              disabled={isDeleting}
-            >
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

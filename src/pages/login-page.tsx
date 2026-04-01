@@ -12,7 +12,7 @@ export function LoginPage() {
   const { user, isLoading, isConfigured } = useAuth();
 
   React.useEffect(() => {
-    document.title = "Goa Community College File Storage Portal";
+    document.title = "GCC BOT File Storage";
   }, []);
 
   if (isConfigured && !isLoading && user) {
@@ -33,7 +33,7 @@ export function LoginPage() {
               Goa Community College
             </h1>
             <p className="mt-1 text-sm text-slate-500 sm:text-base">
-              Simple File Storage Portal
+              GCC BOT File Storage
             </p>
           </div>
 
