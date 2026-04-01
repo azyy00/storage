@@ -711,7 +711,11 @@ export function DashboardPage() {
     };
   }, [previewFile, updateFileSummary]);
 
-  async function handleUploadComplete(_file: BotFileRecord) {
+  async function handleUploadComplete(uploadedFiles: BotFileRecord[]) {
+    if (uploadedFiles.length > 0) {
+      setPreviewFile(uploadedFiles[uploadedFiles.length - 1]);
+    }
+
     await refresh();
   }
 

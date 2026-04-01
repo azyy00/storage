@@ -35,7 +35,7 @@ type UploadDialogProps = {
   userId: string;
   uploader: string;
   years: string[];
-  onUploaded: (file: BotFileRecord) => Promise<void> | void;
+  onUploaded: (files: BotFileRecord[]) => Promise<void> | void;
 };
 
 const currentYear = String(new Date().getFullYear());
@@ -48,11 +48,16 @@ export function UploadDialog({
   years,
   onUploaded,
 }: UploadDialogProps) {
-  const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
   const [name, setName] = React.useState("");
   const [year, setYear] = React.useState<string>(currentYear);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const totalSelectedSize = React.useMemo(
+    () => selectedFiles.reduce((sum, file) => sum + file.size, 0),
+    [selectedFiles],
+  );
+  const isBatchUpload = selectedFiles.length > 1;
 
   React.useEffect(() => {
     if (!open) {
@@ -66,7 +71,7 @@ export function UploadDialog({
   }, [open, year]);
 
   function resetForm() {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setName("");
     setYear(currentYear);
     setError(null);
@@ -81,13 +86,13 @@ export function UploadDialog({
       return;
     }
 
-    if (!selectedFile) {
-      setError("A file is required.");
+    if (selectedFiles.length === 0) {
+      setError("At least one file is required.");
       return;
     }
 
     const trimmedName = name.trim();
-    if (!trimmedName) {
+    if (!isBatchUpload && !trimmedName) {
       setError("File name cannot be blank.");
       return;
     }
@@ -100,74 +105,114 @@ export function UploadDialog({
     setIsSubmitting(true);
     setError(null);
 
-    let uploadedPath: string | null = null;
-
     try {
-      const renamedFile =
-        trimmedName === selectedFile.name
-          ? selectedFile
-          : new File([selectedFile], trimmedName, {
-              type: selectedFile.type,
-              lastModified: selectedFile.lastModified,
-            });
+      const uploadedRecords: BotFileRecord[] = [];
+      const failedFiles: string[] = [];
+      let fallbackCount = 0;
 
-      uploadedPath = await uploadFileToStorage({
-        supabase,
-        userId,
-        file: renamedFile,
-        year,
-        category: BOT_DEFAULT_CATEGORY,
-        fileName: trimmedName,
-      });
+      for (const selectedFile of selectedFiles) {
+        const targetName = isBatchUpload ? selectedFile.name : trimmedName;
+        let uploadedPath: string | null = null;
 
-      const extractedText = await extractReadableText(renamedFile);
-      const summaryResult = await requestSummary({
-        supabase,
-        input: {
-          name: trimmedName,
-          year,
-          category: BOT_DEFAULT_CATEGORY,
-          description: "",
-          extractedText,
-        },
-      });
+        try {
+          const renamedFile =
+            targetName === selectedFile.name
+              ? selectedFile
+              : new File([selectedFile], targetName, {
+                  type: selectedFile.type,
+                  lastModified: selectedFile.lastModified,
+                });
 
-      const { data, error: insertError } = await supabase
-        .from("bot_files")
-        .insert({
-          user_id: userId,
-          name: trimmedName,
-          file_path: uploadedPath,
-          file_url: null,
-          year,
-          category: BOT_DEFAULT_CATEGORY,
-          file_type: detectFileType(trimmedName),
-          file_size: renamedFile.size,
-          description: null,
-          summary: summaryResult.summary,
-          uploader,
-        })
-        .select("*")
-        .single();
+          uploadedPath = await uploadFileToStorage({
+            supabase,
+            userId,
+            file: renamedFile,
+            year,
+            category: BOT_DEFAULT_CATEGORY,
+            fileName: targetName,
+          });
 
-      if (insertError) {
-        throw insertError;
+          const extractedText = await extractReadableText(renamedFile);
+          const summaryResult = await requestSummary({
+            supabase,
+            input: {
+              name: targetName,
+              year,
+              category: BOT_DEFAULT_CATEGORY,
+              description: "",
+              extractedText,
+            },
+          });
+
+          const { data, error: insertError } = await supabase
+            .from("bot_files")
+            .insert({
+              user_id: userId,
+              name: targetName,
+              file_path: uploadedPath,
+              file_url: null,
+              year,
+              category: BOT_DEFAULT_CATEGORY,
+              file_type: detectFileType(targetName),
+              file_size: renamedFile.size,
+              description: null,
+              summary: summaryResult.summary,
+              uploader,
+            })
+            .select("*")
+            .single();
+
+          if (insertError) {
+            throw insertError;
+          }
+
+          if (summaryResult.usedFallback) {
+            fallbackCount += 1;
+          }
+
+          uploadedRecords.push(data as BotFileRecord);
+        } catch (fileError) {
+          if (supabase && uploadedPath) {
+            await supabase.storage.from(BOT_STORAGE_BUCKET).remove([uploadedPath]);
+          }
+
+          failedFiles.push(
+            fileError instanceof Error
+              ? `${selectedFile.name}: ${fileError.message}`
+              : selectedFile.name,
+          );
+        }
       }
 
-      if (summaryResult.usedFallback) {
-        toast.warning("File uploaded. A basic summary was saved.");
+      if (uploadedRecords.length === 0) {
+        throw new Error(failedFiles[0] ?? "Upload failed.");
+      }
+
+      await onUploaded(uploadedRecords);
+
+      if (uploadedRecords.length === 1 && failedFiles.length === 0) {
+        if (fallbackCount > 0) {
+          toast.warning("File uploaded. A basic summary was saved.");
+        } else {
+          toast.success("File uploaded.");
+        }
+      } else if (failedFiles.length > 0) {
+        toast.warning(
+          `${uploadedRecords.length} file${uploadedRecords.length === 1 ? "" : "s"} uploaded. ${failedFiles.length} failed.`,
+        );
+      } else if (fallbackCount > 0) {
+        toast.warning(
+          `${uploadedRecords.length} files uploaded. ${fallbackCount} used a basic summary.`,
+        );
       } else {
-        toast.success("File uploaded.");
+        toast.success(
+          `${uploadedRecords.length} file${uploadedRecords.length === 1 ? "" : "s"} uploaded.`,
+        );
       }
 
-      await onUploaded(data as BotFileRecord);
       onOpenChange(false);
       resetForm();
     } catch (submitError) {
-      if (supabase && uploadedPath) {
-        await supabase.storage.from(BOT_STORAGE_BUCKET).remove([uploadedPath]);
-      }
-
       const message =
         submitError instanceof Error ? submitError.message : "Upload failed.";
       setError(message);
@@ -193,10 +238,10 @@ export function UploadDialog({
       <DialogContent className="max-h-[90vh] max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-0 sm:max-w-xl sm:rounded-[1.75rem]">
         <DialogHeader className="border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
           <DialogTitle className="text-xl font-semibold text-slate-950">
-            Upload file
+            Upload files
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-500">
-            Add a file, assign its year, and store it securely.
+            Add one or more files, assign their year, and store them securely.
           </DialogDescription>
         </DialogHeader>
 
@@ -211,37 +256,63 @@ export function UploadDialog({
                 <UploadCloud className="h-6 w-6" />
               </div>
               <p className="mt-4 text-sm font-semibold text-slate-900">
-                {selectedFile ? selectedFile.name : "Choose a file from your device"}
+                {selectedFiles.length === 0
+                  ? "Choose files from your device"
+                  : selectedFiles.length === 1
+                    ? selectedFiles[0].name
+                    : `${selectedFiles.length} files selected`}
               </p>
               <p className="mt-2 text-sm text-slate-500">
-                {selectedFile
-                  ? `${formatFileSize(selectedFile.size)} - ${detectFileType(selectedFile.name)}`
+                {selectedFiles.length === 1
+                  ? `${formatFileSize(selectedFiles[0].size)} - ${detectFileType(selectedFiles[0].name)}`
+                  : selectedFiles.length > 1
+                    ? `${formatFileSize(totalSelectedSize)} total selected`
                   : "PDF, DOCX, XLSX, CSV, TXT, and similar files"}
               </p>
             </label>
+            {selectedFiles.length > 1 ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <p className="font-medium text-slate-900">
+                  {selectedFiles.length} files ready to upload
+                </p>
+                <p className="mt-1">
+                  Original file names will be used for batch upload.
+                </p>
+              </div>
+            ) : null}
             <input
               id="upload-file"
               type="file"
+              multiple
               className="hidden"
               onChange={(event) => {
-                const nextFile = event.target.files?.[0] ?? null;
-                setSelectedFile(nextFile);
-                setName(nextFile?.name ?? "");
+                const nextFiles = Array.from(event.target.files ?? []);
+                setSelectedFiles(nextFiles);
+                setName(nextFiles.length === 1 ? nextFiles[0].name : "");
               }}
             />
           </div>
 
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
-            <div className="space-y-2">
-              <Label htmlFor="upload-name">File name</Label>
-              <Input
-                id="upload-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="company-profile.pdf"
-                className="h-11 rounded-2xl"
-              />
-            </div>
+            {isBatchUpload ? (
+              <div className="space-y-2">
+                <Label>File names</Label>
+                <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">
+                  Using original names for all selected files
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="upload-name">File name</Label>
+                <Input
+                  id="upload-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="company-profile.pdf"
+                  className="h-11 rounded-2xl"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Year</Label>
@@ -285,7 +356,9 @@ export function UploadDialog({
               disabled={isSubmitting}
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isSubmitting ? "Uploading..." : "Upload file"}
+              {isSubmitting
+                ? "Uploading..."
+                : `Upload ${selectedFiles.length > 1 ? "files" : "file"}`}
             </Button>
           </div>
         </form>
