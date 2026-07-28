@@ -46,8 +46,9 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Geist Variable", "Segoe UI", ...defaultTheme.fontFamily.sans],
-        heading: ["Geist Variable", ...defaultTheme.fontFamily.sans],
+        sans: ["Outfit Variable", "Segoe UI", ...defaultTheme.fontFamily.sans],
+        heading: ["Outfit Variable", ...defaultTheme.fontFamily.sans],
+        mono: ["IBM Plex Mono", ...defaultTheme.fontFamily.mono],
       },
     },
   },

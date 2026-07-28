@@ -11,7 +11,7 @@ export const supabase: AppSupabaseClient | null = env.isSupabaseConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storageKey: "bot-drive-auth",
+        storageKey: env.supabaseStorageKey,
       },
     })
   : null;

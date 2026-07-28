@@ -28,14 +28,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let isMounted = true;
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!isMounted) {
-        return;
-      }
+    void supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!isMounted) {
+          return;
+        }
 
-      setSession(data.session);
-      setIsLoading(false);
-    });
+        if (error) {
+          console.warn("Supabase session restore failed.", error);
+          setSession(null);
+          setIsLoading(false);
+          return;
+        }
+
+        setSession(data.session);
+        setIsLoading(false);
+      })
+      .catch((error) => {
+        if (!isMounted) {
+          return;
+        }
+
+        console.warn("Supabase session restore crashed.", error);
+        setSession(null);
+        setIsLoading(false);
+      });
 
     const {
       data: { subscription },

@@ -235,34 +235,37 @@ export function UploadDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[90vh] max-w-[calc(100%-1.25rem)] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-0 sm:max-w-xl sm:rounded-[1.75rem]">
-        <DialogHeader className="border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5">
-          <DialogTitle className="text-xl font-semibold text-slate-950">
+      <DialogContent className="industrial-surface max-h-[90vh] max-w-[calc(100%-1.25rem)] overflow-y-auto border border-[#111111] bg-[#f2f0ea] p-0 sm:max-w-xl">
+        <DialogHeader className="border-b border-[#111111] bg-[#f2f0ea] px-4 py-5 sm:px-6 sm:py-6">
+          <p className="industrial-label text-[#d8241f]">Secure storage intake</p>
+          <DialogTitle className="text-3xl font-extrabold uppercase tracking-[-0.045em] text-[#111111]">
             Upload files
           </DialogTitle>
-          <DialogDescription className="text-sm text-slate-500">
-            Add one or more files, assign their year, and store them securely.
+          <DialogDescription className="text-sm text-[#68655e]">
+            Add one or more BOT files, assign their year, and store them securely.
           </DialogDescription>
         </DialogHeader>
 
         <form className="space-y-5 px-4 py-5 sm:px-6 sm:py-6" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="upload-file">File</Label>
+            <Label className="industrial-label text-[#4f4c46]" htmlFor="upload-file">
+              File
+            </Label>
             <label
               htmlFor="upload-file"
-              className="flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center transition-all hover:border-slate-400 hover:bg-white"
+              className="flex cursor-pointer flex-col items-center justify-center border border-dashed border-[#77736b] bg-white px-5 py-9 text-center transition-colors hover:border-[#d8241f] hover:bg-[#fff9f8]"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-white text-slate-700 shadow-sm">
+              <div className="flex h-14 w-14 items-center justify-center border border-[#111111] bg-[#f2f0ea] text-[#111111]">
                 <UploadCloud className="h-6 w-6" />
               </div>
-              <p className="mt-4 text-sm font-semibold text-slate-900">
+              <p className="mt-4 text-sm font-bold text-[#111111]">
                 {selectedFiles.length === 0
                   ? "Choose files from your device"
                   : selectedFiles.length === 1
                     ? selectedFiles[0].name
                     : `${selectedFiles.length} files selected`}
               </p>
-              <p className="mt-2 text-sm text-slate-500">
+              <p className="industrial-meta mt-2 text-[#68655e]">
                 {selectedFiles.length === 1
                   ? `${formatFileSize(selectedFiles[0].size)} - ${detectFileType(selectedFiles[0].name)}`
                   : selectedFiles.length > 1
@@ -271,8 +274,8 @@ export function UploadDialog({
               </p>
             </label>
             {selectedFiles.length > 1 ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <p className="font-medium text-slate-900">
+              <div className="border border-[#c9c6bd] bg-white px-4 py-3 text-sm text-[#4f4c46]">
+                <p className="font-bold text-[#111111]">
                   {selectedFiles.length} files ready to upload
                 </p>
                 <p className="mt-1">
@@ -296,28 +299,30 @@ export function UploadDialog({
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
             {isBatchUpload ? (
               <div className="space-y-2">
-                <Label>File names</Label>
-                <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-500">
+                <Label className="industrial-label text-[#4f4c46]">File names</Label>
+                <div className="flex h-11 items-center border border-[#c9c6bd] bg-white px-4 font-mono text-xs text-[#68655e]">
                   Using original names for all selected files
                 </div>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="upload-name">File name</Label>
+                <Label className="industrial-label text-[#4f4c46]" htmlFor="upload-name">
+                  File name
+                </Label>
                 <Input
                   id="upload-name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   placeholder="company-profile.pdf"
-                  className="h-11 rounded-2xl"
+                  className="h-11 border-[#111111] bg-white font-mono text-xs"
                 />
               </div>
             )}
 
             <div className="space-y-2">
-              <Label>Year</Label>
+              <Label className="industrial-label text-[#4f4c46]">Year</Label>
               <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="h-11 w-full rounded-2xl">
+                <SelectTrigger className="h-11 w-full border-[#111111] bg-white font-mono text-xs">
                   <SelectValue placeholder="Choose a year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,16 +337,16 @@ export function UploadDialog({
           </div>
 
           {error ? (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <div className="border border-[#d8241f] bg-[#fff5f4] px-4 py-3 text-sm text-[#b91f1b]">
               {error}
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+          <div className="flex flex-col gap-3 border-t border-[#111111] pt-5 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
-              className="rounded-2xl"
+              className="border-[#111111] bg-white font-mono text-xs uppercase tracking-[0.06em]"
               disabled={isSubmitting}
               onClick={() => {
                 onOpenChange(false);
@@ -352,7 +357,7 @@ export function UploadDialog({
             </Button>
             <Button
               type="submit"
-              className="rounded-2xl bg-slate-900 text-white hover:bg-slate-800"
+              className="border border-[#d8241f] bg-[#d8241f] font-mono text-xs uppercase tracking-[0.06em] text-white hover:bg-[#b91f1b]"
               disabled={isSubmitting}
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

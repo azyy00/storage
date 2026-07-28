@@ -5,6 +5,14 @@ import { buildStoragePath, deleteStoredFile, moveStoredFile } from "@/lib/storag
 import { supabase } from "@/lib/supabaseClient";
 import type { BotFileRecord } from "@/types/database";
 
+function mapBotFilesError(message: string) {
+  if (message.includes("Could not find the table 'public.bot_files'")) {
+    return "The bot_files table is not available in this Supabase project yet. Run the SQL in supabase/schema.sql, then refresh the app.";
+  }
+
+  return message;
+}
+
 export function useBotFiles(userId: string | undefined) {
   const [files, setFiles] = React.useState<BotFileRecord[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -27,7 +35,7 @@ export function useBotFiles(userId: string | undefined) {
 
     if (queryError) {
       setFiles([]);
-      setError(queryError.message);
+      setError(mapBotFilesError(queryError.message));
       setIsLoading(false);
       return [];
     }
@@ -159,6 +167,34 @@ export function useBotFiles(userId: string | undefined) {
     [],
   );
 
+  const toggleStar = React.useCallback(async (file: BotFileRecord) => {
+    if (!supabase) {
+      throw new Error("Supabase is not configured.");
+    }
+
+    const { data, error: updateError } = await supabase
+      .from("bot_files")
+      .update({
+        is_starred: !file.is_starred,
+      })
+      .eq("id", file.id)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    const nextFile = data as BotFileRecord;
+    setFiles((currentFiles) =>
+      currentFiles.map((currentFile) =>
+        currentFile.id === nextFile.id ? nextFile : currentFile,
+      ),
+    );
+
+    return nextFile;
+  }, []);
+
   return {
     files,
     isLoading,
@@ -167,5 +203,6 @@ export function useBotFiles(userId: string | undefined) {
     renameFile,
     deleteFile,
     updateFileSummary,
+    toggleStar,
   };
 }

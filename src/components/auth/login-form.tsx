@@ -1,5 +1,12 @@
 import * as React from "react";
-import { Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -8,11 +15,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabaseClient";
 
+function formatAuthErrorMessage(error: unknown, mode: "login" | "signup") {
+  const fallbackMessage =
+    error instanceof Error ? error.message : "Authentication failed.";
+  const normalizedMessage = fallbackMessage.toLowerCase();
+
+  if (
+    normalizedMessage.includes("rate limit") ||
+    normalizedMessage.includes("over_email_send_rate_limit") ||
+    normalizedMessage.includes("email rate limit exceeded")
+  ) {
+    return mode === "signup"
+      ? "Too many signup emails were requested. Please wait and try again later, or ask the admin to connect a custom SMTP sender in Supabase."
+      : "Too many sign-in attempts were made. Please wait a bit and try again.";
+  }
+
+  if (
+    normalizedMessage.includes("failed to fetch") ||
+    normalizedMessage.includes("networkerror") ||
+    normalizedMessage.includes("err_name_not_resolved")
+  ) {
+    return "Unable to reach Supabase. Check the project URL, use the public anon key from the same project, and verify your internet/DNS connection.";
+  }
+
+  return fallbackMessage;
+}
+
 export function LoginForm({ disabled }: { disabled?: boolean }) {
   const [mode, setMode] = React.useState<"login" | "signup">("login");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -27,7 +62,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
     setError(null);
 
     try {
-      const normalizedEmail = email.trim();
+      const normalizedEmail = email.trim().toLowerCase();
 
       if (mode === "signup") {
         if (password !== confirmPassword) {
@@ -65,10 +100,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         toast.success("Signed in.");
       }
     } catch (submitError) {
-      const message =
-        submitError instanceof Error
-          ? submitError.message
-          : "Authentication failed.";
+      const message = formatAuthErrorMessage(submitError, mode);
       setError(message);
       toast.error(message);
     } finally {
@@ -77,16 +109,16 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white/95 p-5 shadow-xl shadow-slate-200/70 sm:rounded-[2rem] sm:p-8">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
+    <Card className="mx-auto w-full max-w-md border-0 bg-white p-5 sm:p-8">
+      <div className="flex items-center gap-3 border-b border-[#111111] pb-5">
+        <div className="flex h-11 w-11 items-center justify-center border border-[#111111] bg-[#111111] text-white">
           <ShieldCheck className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-base font-semibold text-slate-950">
+          <p className="text-lg font-extrabold uppercase tracking-[-0.03em] text-[#111111]">
             {mode === "login" ? "Account Login" : "Create Account"}
           </p>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-[#68655e]">
             {mode === "login"
               ? "Sign in to open the storage dashboard"
               : "Create an account to open your own workspace"}
@@ -95,19 +127,21 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
       </div>
 
       <div className="mt-6">
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+        <div className="grid grid-cols-2 gap-1 border-0 bg-[#f2f0ea] p-1">
           <button
             type="button"
-            className={`rounded-[1rem] px-3 py-2 text-sm font-medium transition ${
+            className={`min-h-11 px-3 py-2 font-mono text-xs font-semibold uppercase tracking-[0.06em] transition-colors ${
               mode === "login"
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-[#111111] text-white"
+                : "bg-white text-[#68655e] hover:bg-[#f2f0ea] hover:text-[#111111]"
             }`}
             onClick={() => {
               setMode("login");
               setError(null);
               setPassword("");
               setConfirmPassword("");
+              setIsPasswordVisible(false);
+              setIsConfirmPasswordVisible(false);
             }}
             disabled={disabled || isSubmitting}
           >
@@ -115,16 +149,18 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
           </button>
           <button
             type="button"
-            className={`rounded-[1rem] px-3 py-2 text-sm font-medium transition ${
+            className={`min-h-11 px-3 py-2 font-mono text-xs font-semibold uppercase tracking-[0.06em] transition-colors ${
               mode === "signup"
-                ? "bg-white text-slate-950 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
+                ? "bg-[#111111] text-white"
+                : "bg-white text-[#68655e] hover:bg-[#f2f0ea] hover:text-[#111111]"
             }`}
             onClick={() => {
               setMode("signup");
               setError(null);
               setPassword("");
               setConfirmPassword("");
+              setIsPasswordVisible(false);
+              setIsConfirmPasswordVisible(false);
             }}
             disabled={disabled || isSubmitting}
           >
@@ -132,10 +168,10 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
           </button>
         </div>
 
-        <h1 className="mt-6 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
+        <h2 className="mt-7 text-2xl font-extrabold tracking-[-0.04em] text-[#111111] sm:text-3xl">
           {mode === "login" ? "Access GCC BOT File Storage" : "Create Your Account"}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-[#68655e]">
           {mode === "login"
             ? "Sign in to open your file dashboard and manage your files."
             : "Create an account so you can upload and manage files in your own dashboard."}
@@ -144,16 +180,18 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label className="industrial-label text-[#4f4c46]" htmlFor="email">
+            Email
+          </Label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#68655e]" />
             <Input
               id="email"
               type="email"
               autoComplete={mode === "login" ? "email" : "username"}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="h-11 rounded-2xl pl-10"
+              className="h-12 border-[#111111] bg-white pl-10 font-mono text-xs"
               placeholder="name@example.com"
               disabled={disabled || isSubmitting}
               required
@@ -162,56 +200,88 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label className="industrial-label text-[#4f4c46]" htmlFor="password">
+            Password
+          </Label>
           <div className="relative">
-            <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#68655e]" />
             <Input
               id="password"
-              type="password"
+              type={isPasswordVisible ? "text" : "password"}
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
               }
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="h-11 rounded-2xl pl-10"
+              className="h-12 border-[#111111] bg-white pl-10 pr-11 font-mono text-xs"
               placeholder="Enter your password"
               disabled={disabled || isSubmitting}
               required
               minLength={8}
             />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[#68655e] transition hover:bg-[#f2f0ea] hover:text-[#111111]"
+              onClick={() => setIsPasswordVisible((value) => !value)}
+              aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+              disabled={disabled || isSubmitting}
+            >
+              {isPasswordVisible ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
           </div>
         </div>
 
         {mode === "signup" ? (
           <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Label className="industrial-label text-[#4f4c46]" htmlFor="confirm-password">
+              Confirm Password
+            </Label>
             <div className="relative">
-              <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#68655e]" />
               <Input
                 id="confirm-password"
-                type="password"
+                type={isConfirmPasswordVisible ? "text" : "password"}
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                className="h-11 rounded-2xl pl-10"
+                className="h-12 border-[#111111] bg-white pl-10 pr-11 font-mono text-xs"
                 placeholder="Confirm your password"
                 disabled={disabled || isSubmitting}
                 required
                 minLength={8}
               />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-[#68655e] transition hover:bg-[#f2f0ea] hover:text-[#111111]"
+                onClick={() => setIsConfirmPasswordVisible((value) => !value)}
+                aria-label={
+                  isConfirmPasswordVisible ? "Hide confirm password" : "Show confirm password"
+                }
+                disabled={disabled || isSubmitting}
+              >
+                {isConfirmPasswordVisible ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
             </div>
           </div>
         ) : null}
 
         {error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="border border-[#d8241f] bg-[#fff5f4] px-4 py-3 text-sm text-[#b91f1b]">
             {error}
           </div>
         ) : null}
 
         <Button
           type="submit"
-          className="h-11 w-full rounded-2xl bg-slate-900 text-white hover:bg-slate-800"
+          className="h-12 w-full border border-[#d8241f] bg-[#d8241f] font-mono text-xs font-semibold uppercase tracking-[0.08em] text-white hover:bg-[#b91f1b]"
           disabled={disabled || isSubmitting}
         >
           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
