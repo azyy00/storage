@@ -1,2 +1,13 @@
+[auth]
+site_url = "https://bot-storage.vercel.app"
+additional_redirect_urls = [
+  "https://bot-storage.vercel.app",
+  "http://localhost:5173",
+]
+
+[auth.email.template.confirmation]
+subject = "Confirm your GCC BOT Drive account"
+content_path = "./supabase/templates/confirmation.html"
+
 [functions.generate-summary]
 verify_jwt = true

@@ -46,8 +46,19 @@ function getSupabaseProjectRef(url: string) {
   }
 }
 
+const DEFAULT_APP_URL = "https://bot-storage.vercel.app";
+
+function getAppUrl(value: string) {
+  try {
+    return new URL(value || DEFAULT_APP_URL).origin;
+  } catch {
+    return DEFAULT_APP_URL;
+  }
+}
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
+const appUrl = getAppUrl(import.meta.env.VITE_APP_URL?.trim() ?? "");
 const supabaseKeyRole = getSupabaseKeyRole(supabaseAnonKey);
 const supabaseProjectRef = getSupabaseProjectRef(supabaseUrl);
 
@@ -66,6 +77,8 @@ export const env = {
   supabaseAnonKey,
   supabaseKeyRole,
   supabaseProjectRef,
+  appUrl,
+  authRedirectUrl: `${appUrl}/`,
   supabaseStorageKey: `bot-drive-auth:${supabaseProjectRef ?? "default"}`,
   supabaseConfigError,
   isSupabaseConfigured: Boolean(supabaseUrl && supabaseAnonKey && !supabaseConfigError),

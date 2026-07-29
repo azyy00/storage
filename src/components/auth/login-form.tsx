@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { env } from "@/lib/env";
 import { supabase } from "@/lib/supabaseClient";
 
 function formatAuthErrorMessage(error: unknown, mode: "login" | "signup") {
@@ -50,6 +51,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,6 +62,7 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
 
     setIsSubmitting(true);
     setError(null);
+    setNotice(null);
 
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -72,6 +75,12 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
+          options: {
+            emailRedirectTo: env.authRedirectUrl,
+            data: {
+              application_name: "GCC BOT Drive",
+            },
+          },
         });
 
         if (signUpError) {
@@ -82,11 +91,12 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         setPassword("");
         setConfirmPassword("");
 
-        toast.success(
-          data.session
-            ? "Account created."
-            : "Account created. Check your email if confirmation is required.",
-        );
+        const successMessage = data.session
+          ? "Account created. You can now access BOT Drive."
+          : `Confirmation sent to ${normalizedEmail}. Open the email to activate your account.`;
+
+        setNotice(successMessage);
+        toast.success(successMessage);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: normalizedEmail,
@@ -276,6 +286,15 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         {error ? (
           <div className="border border-[#d8241f] bg-[#fff5f4] px-4 py-3 text-sm text-[#b91f1b]">
             {error}
+          </div>
+        ) : null}
+
+        {notice ? (
+          <div
+            className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
+            role="status"
+          >
+            {notice}
           </div>
         ) : null}
 
