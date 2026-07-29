@@ -16,18 +16,65 @@ import { Label } from "@/components/ui/label";
 import { env } from "@/lib/env";
 import { supabase } from "@/lib/supabaseClient";
 
+const PENDING_SIGNUP_STORAGE_KEY = `bot-drive-pending-signup:${env.supabaseProjectRef ?? "default"}`;
+const SIGNUP_RETRY_WINDOW_MS = 60 * 60 * 1000;
+
+type PendingSignup = {
+  email: string;
+  requestedAt: number;
+};
+
+function isEmailRateLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalizedMessage = message.toLowerCase();
+
+  return (
+    normalizedMessage.includes("rate limit") ||
+    normalizedMessage.includes("over_email_send_rate_limit") ||
+    normalizedMessage.includes("email rate limit exceeded")
+  );
+}
+
+function readPendingSignup() {
+  try {
+    const storedValue = window.sessionStorage.getItem(PENDING_SIGNUP_STORAGE_KEY);
+    if (!storedValue) {
+      return null;
+    }
+
+    const pendingSignup = JSON.parse(storedValue) as Partial<PendingSignup>;
+    if (
+      typeof pendingSignup.email !== "string" ||
+      typeof pendingSignup.requestedAt !== "number"
+    ) {
+      return null;
+    }
+
+    return pendingSignup as PendingSignup;
+  } catch {
+    return null;
+  }
+}
+
+function rememberPendingSignup(email: string) {
+  try {
+    window.sessionStorage.setItem(
+      PENDING_SIGNUP_STORAGE_KEY,
+      JSON.stringify({ email, requestedAt: Date.now() } satisfies PendingSignup),
+    );
+  } catch {
+    // Session storage may be unavailable in privacy-restricted browsers.
+  }
+}
+
 function formatAuthErrorMessage(error: unknown, mode: "login" | "signup") {
   const fallbackMessage =
     error instanceof Error ? error.message : "Authentication failed.";
   const normalizedMessage = fallbackMessage.toLowerCase();
 
-  if (
-    normalizedMessage.includes("rate limit") ||
-    normalizedMessage.includes("over_email_send_rate_limit") ||
-    normalizedMessage.includes("email rate limit exceeded")
-  ) {
+  if (isEmailRateLimitError(error)) {
     return mode === "signup"
-      ? "Too many signup emails were requested. Please wait and try again later, or ask the admin to connect a custom SMTP sender in Supabase."
+      ? "The confirmation email service has reached its temporary sending limit. Use the newest confirmation email in your inbox or spam folder, or wait up to one hour before trying again."
       : "Too many sign-in attempts were made. Please wait a bit and try again.";
   }
 
@@ -60,13 +107,33 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (mode === "signup") {
+      const pendingSignup = readPendingSignup();
+      const isRecentRequest =
+        pendingSignup?.email === normalizedEmail &&
+        Date.now() - pendingSignup.requestedAt < SIGNUP_RETRY_WINDOW_MS;
+
+      if (isRecentRequest) {
+        const pendingMessage =
+          "A confirmation request is already pending for this email. Open the newest GCC BOT Drive message in your inbox or spam folder, then confirm your account.";
+
+        setMode("login");
+        setError(null);
+        setNotice(pendingMessage);
+        setPassword("");
+        setConfirmPassword("");
+        toast.info("Confirmation already requested. Check your email.");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setError(null);
     setNotice(null);
 
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-
       if (mode === "signup") {
         if (password !== confirmPassword) {
           throw new Error("Passwords do not match.");
@@ -95,6 +162,10 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
           ? "Account created. You can now access BOT Drive."
           : `Confirmation sent to ${normalizedEmail}. Open the email to activate your account.`;
 
+        if (!data.session) {
+          rememberPendingSignup(normalizedEmail);
+        }
+
         setNotice(successMessage);
         toast.success(successMessage);
       } else {
@@ -110,6 +181,20 @@ export function LoginForm({ disabled }: { disabled?: boolean }) {
         toast.success("Signed in.");
       }
     } catch (submitError) {
+      if (mode === "signup" && isEmailRateLimitError(submitError)) {
+        const pendingMessage =
+          "A confirmation request is already pending. Use the newest GCC BOT Drive email in your inbox or spam folder. If no email arrived, wait up to one hour before trying again.";
+
+        rememberPendingSignup(normalizedEmail);
+        setMode("login");
+        setPassword("");
+        setConfirmPassword("");
+        setError(null);
+        setNotice(pendingMessage);
+        toast.info("Email limit reached. Check your newest confirmation email.");
+        return;
+      }
+
       const message = formatAuthErrorMessage(submitError, mode);
       setError(message);
       toast.error(message);
